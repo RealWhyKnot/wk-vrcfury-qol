@@ -11,6 +11,9 @@ The most recent release is at the top.
 
 ## Unreleased
 
+### Added
+- **inspector:** Per-toggle Preview banner, inline action tools, multi-toggle action resolver (24e3922)
+
 ### Changed
 - Bump actions/checkout from 4 to 6 (#1) (16c696c)
 
