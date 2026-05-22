@@ -15,6 +15,7 @@ The most recent release is at the top.
 - **inspector:** Per-toggle Preview banner, inline action tools, multi-toggle action resolver (24e3922)
 
 ### Changed
+- **deps:** Add `dev.whyknot.core` (>=1.0.0) as a hard `vpmDependency`. VCC auto-installs the shared utility package alongside vrcfury-qol. Internal-only refactor that consolidates the hot-reload watcher, the `GetGameObjectPath` helper, and the six UIElements / banner-chrome helpers behind a single shared assembly; no user-visible behaviour change. The compile log moves from `Logs/VrcfQolHotReload.log` to `Logs/WkCore.log`.
 - Bump actions/checkout from 4 to 6 (#1) (16c696c)
 
 ---
