@@ -11,8 +11,11 @@ All notable changes to this project will be documented in this file. Format foll
 
 ### Added
 - **inspector:** Per-toggle Preview banner, inline action tools, multi-toggle action resolver (24e3922)
+- **logging:** Every diagnostic line in this package now routes through `VrcfQolLogger.Instance` (the package's registered `WkLogger`). Sessions are written to `%LocalAppData%/WhyKnot/Logs/dev.whyknot.vrcfury-qol/session-<timestamp>.log`, capped at 3 retained sessions per package. Each line carries a level tag, source file:line, calling method, and message. Info, Warning, and Error mirror to the Unity Console as before; Debug stays file-only. The session file is project-independent so a bug report can point at the same path regardless of which Unity project surfaced it.
+- **theming:** Tool window OnGUI bodies (`ReplaceReferencesWindow`, `MissingReferenceWindow`, `MoveVrcfComponentsTool`) open `using (WkStyles.Scope(WkTheme.VRCFury))` so the palette emitted by `WkStyles` matches VRCFury's dark-gray row chrome and warm accents. The inspector overlay (UIElements) already painted these colors via its hardcoded chrome helpers; the IMGUI tool windows now match.
 
 ### Changed
+- **deps:** Bumped `dev.whyknot.core` dependency to `>=1.1.0` so the new theming system and `WkLogger` are guaranteed available.
 - **deps:** Add `dev.whyknot.core` (>=1.0.0) as a hard `vpmDependency`. VCC auto-installs the shared utility package alongside vrcfury-qol. Internal-only refactor that consolidates the hot-reload watcher, the `GetGameObjectPath` helper, and the six UIElements / banner-chrome helpers behind a single shared assembly; no user-visible behaviour change. The compile log moves from `Logs/VrcfQolHotReload.log` to `Logs/WkCore.log`.
 - Bump actions/checkout from 4 to 6 (#1) (16c696c)
 

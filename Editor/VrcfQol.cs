@@ -98,7 +98,7 @@ namespace UmeVrcfQol {
                 var act = e.Action;
                 if (enabled) {
                     menu.AddItem(new GUIContent(e.Label), false, () => {
-                        try { act(captured); } catch (Exception ex) { Debug.LogException(ex); }
+                        try { act(captured); } catch (Exception ex) { VrcfQolLogger.Instance.Exception(ex); }
                     });
                 } else {
                     menu.AddDisabledItem(new GUIContent(e.Label));

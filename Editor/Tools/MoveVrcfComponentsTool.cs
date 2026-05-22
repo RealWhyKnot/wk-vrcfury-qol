@@ -35,6 +35,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
+using WhyKnot.Core.Styling;
 using WhyKnot.Core.Utilities;
 
 namespace UmeVrcfQol.Tools {
@@ -132,14 +133,14 @@ namespace UmeVrcfQol.Tools {
                     MergeFeaturesInto(destination, sources, r);
                 }
                 Undo.CollapseUndoOperations(group);
-                Debug.Log($"[VRCF QoL] Moved {sources.Count} VRCFury component(s) " +
+                VrcfQolLogger.Instance.Info($"Moved {sources.Count} VRCFury component(s) " +
                           $"from '{PathUtility.GetGameObjectPath(source)}' to " +
                           $"'{PathUtility.GetGameObjectPath(destination)}' " +
                           $"(mode: {(mode == Mode.WholeComponents ? "whole" : "merge")}).");
                 return sources.Count;
             } catch (Exception ex) {
                 Undo.RevertAllInCurrentGroup();
-                Debug.LogException(ex);
+                VrcfQolLogger.Instance.Exception(ex);
                 throw;
             }
         }
@@ -230,6 +231,7 @@ namespace UmeVrcfQol.Tools {
         }
 
         private void OnGUI() {
+            using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
             if (_source == null) {
                 EditorGUILayout.HelpBox("Source GameObject was deleted. Close this window.", MessageType.Error);
                 if (GUILayout.Button(new GUIContent("Close", "Close this window."))) Close();

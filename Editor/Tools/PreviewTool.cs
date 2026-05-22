@@ -222,9 +222,9 @@ namespace UmeVrcfQol.Tools {
                 }
 
                 HideSourceAvatar(sourceRoot);
-                Debug.Log($"[VRCF QoL] Started preview '{title}' on temporary clone '{clone.name}' ({applied} action(s) applied).");
+                VrcfQolLogger.Instance.Info($"Started preview '{title}' on temporary clone '{clone.name}' ({applied} action(s) applied).");
             } catch (Exception ex) {
-                Debug.LogException(ex);
+                VrcfQolLogger.Instance.Exception(ex);
                 if (clone != null) Object.DestroyImmediate(clone);
                 _active = null;
                 ForgetPreview();
@@ -272,7 +272,7 @@ namespace UmeVrcfQol.Tools {
                         return false;
                 }
             } catch (Exception ex) {
-                Debug.LogWarning($"[VRCF QoL] Preview skipped {action.GetType().Name}: {ex.Message}");
+                VrcfQolLogger.Instance.Warning($"Preview skipped {action.GetType().Name}: {ex.Message}");
                 return false;
             }
         }
@@ -425,7 +425,7 @@ namespace UmeVrcfQol.Tools {
             if (restoreSelection) Selection.objects = previousSelection ?? Array.Empty<Object>();
             ForgetPreview();
             SceneView.RepaintAll();
-            Debug.Log($"[VRCF QoL] Preview '{title}' {reason}; temporary clone destroyed.");
+            VrcfQolLogger.Instance.Info($"Preview '{title}' {reason}; temporary clone destroyed.");
         }
 
         private static IList GetActionsFromPage(object page) {

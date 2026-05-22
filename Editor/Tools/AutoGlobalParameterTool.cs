@@ -103,11 +103,11 @@ namespace UmeVrcfQol.Tools {
             if (k == null) return;
             if (value) {
                 EditorPrefs.SetBool(k, true);
-                Debug.Log($"[VRCF QoL] Global-parameter auto-update DISABLED for '{c.name}'. " +
+                VrcfQolLogger.Instance.Info($"Global-parameter auto-update DISABLED for '{c.name}'. " +
                           $"You can re-enable it from the green banner on the Toggle inspector.");
             } else {
                 EditorPrefs.DeleteKey(k);
-                Debug.Log($"[VRCF QoL] Global-parameter auto-update re-enabled for '{c.name}'.");
+                VrcfQolLogger.Instance.Info($"Global-parameter auto-update re-enabled for '{c.name}'.");
             }
         }
 
@@ -119,7 +119,7 @@ namespace UmeVrcfQol.Tools {
             if (EditorApplication.timeSinceStartup < _nextTick) return;
             _nextTick = EditorApplication.timeSinceStartup + TickSeconds;
             try { SyncAll(); }
-            catch (Exception ex) { Debug.LogException(ex); }
+            catch (Exception ex) { VrcfQolLogger.Instance.Exception(ex); }
         }
 
         private static void SyncAll() {

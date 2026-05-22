@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using WhyKnot.Core.Styling;
 using WhyKnot.Core.Utilities;
 
 namespace UmeVrcfQol.Tools {
@@ -62,6 +63,7 @@ namespace UmeVrcfQol.Tools {
         // ---------------- GUI ---------------------------------------------
 
         private void OnGUI() {
+            using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
             DrawIntro();
             DrawSearchRoots();
             EditorGUILayout.Space(4);
@@ -447,14 +449,14 @@ namespace UmeVrcfQol.Tools {
                 Undo.CollapseUndoOperations(group);
             } catch (System.Exception ex) {
                 Undo.RevertAllInCurrentGroup();
-                Debug.LogException(ex);
+                VrcfQolLogger.Instance.Exception(ex);
                 EditorUtility.DisplayDialog("Replace References",
                     "Apply failed; changes reverted.\n\n" + ex.Message, "OK");
                 return;
             }
 
             string skipNote = skipped > 0 ? $" Skipped {skipped} stale entr{(skipped == 1 ? "y" : "ies")}." : "";
-            Debug.Log($"[VRCF QoL] Replaced {applied} reference(s) across {queuedGroups.Count} unique object(s)." + skipNote);
+            VrcfQolLogger.Instance.Info($"Replaced {applied} reference(s) across {queuedGroups.Count} unique object(s)." + skipNote);
 
             // Re-scan: groups that were fully applied disappear (their old refs
             // no longer exist); the new value may itself become a group if it

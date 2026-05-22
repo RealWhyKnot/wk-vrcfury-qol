@@ -89,11 +89,11 @@ namespace UmeVrcfQol.Tools {
                 var clone = CloneAction(src);
                 list.Insert(index + 1, clone);
                 EditorUtility.SetDirty(component);
-                Debug.Log($"[VRCF QoL] Duplicated action #{index + 1} ({src.GetType().Name}) " +
+                VrcfQolLogger.Instance.Info($"Duplicated action #{index + 1} ({src.GetType().Name}) " +
                           $"in place (now at #{index + 2}).");
                 return true;
             } catch (Exception ex) {
-                Debug.LogException(ex);
+                VrcfQolLogger.Instance.Exception(ex);
                 error = "Duplication failed. See Console.\n\n" + ex.Message;
                 return false;
             }
@@ -158,11 +158,11 @@ namespace UmeVrcfQol.Tools {
                 var clone = CloneAction(src);
                 targetActions.Add(clone);
                 EditorUtility.SetDirty(component);
-                Debug.Log($"[VRCF QoL] Duplicated action #{actionIndex + 1} ({src.GetType().Name}) " +
+                VrcfQolLogger.Instance.Info($"Duplicated action #{actionIndex + 1} ({src.GetType().Name}) " +
                           $"from page #{sourcePageIndex + 1} to page #{targetPageIndex + 1}.");
                 return true;
             } catch (Exception ex) {
-                Debug.LogException(ex);
+                VrcfQolLogger.Instance.Exception(ex);
                 error = "Duplication failed. See Console.\n\n" + ex.Message;
                 return false;
             }

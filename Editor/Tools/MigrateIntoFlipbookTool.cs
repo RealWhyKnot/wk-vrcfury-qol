@@ -121,10 +121,10 @@ namespace UmeVrcfQol.Tools {
                     if (s.component != null) Undo.DestroyObjectImmediate(s.component);
                 }
                 Undo.CollapseUndoOperations(group);
-                Debug.Log($"[VRCF QoL] Migrated {sources.Count} toggles into flipbook '{destName}'. " +
+                VrcfQolLogger.Instance.Info($"Migrated {sources.Count} toggles into flipbook '{destName}'. " +
                           $"Flipbook now has {pages.Count} page(s).");
             } catch (Exception e) {
-                Debug.LogException(e);
+                VrcfQolLogger.Instance.Exception(e);
                 Undo.RevertAllInCurrentGroup();
                 EditorUtility.DisplayDialog("Migrate Child Toggles",
                     "Migration failed; changes reverted.\n\n" + e.Message, "OK");

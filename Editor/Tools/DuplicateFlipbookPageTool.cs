@@ -66,7 +66,7 @@ namespace UmeVrcfQol.Tools {
                 var clone = VrcfQol.DeepClonePage(ctx.pages[ctx.pageIndex]);
                 ctx.pages.Insert(ctx.pageIndex + 1, clone);
                 EditorUtility.SetDirty(ctx.vrcfComponent);
-                Debug.Log($"[VRCF QoL] Duplicated flipbook page #{ctx.pageIndex + 1} " +
+                VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.pageIndex + 1} " +
                           $"as new page #{ctx.pageIndex + 2}.");
             } catch (Exception ex) { Fail("Duplicate Page Below", ex); }
         }
@@ -84,7 +84,7 @@ namespace UmeVrcfQol.Tools {
                 }
                 ctx.pages.Insert(ctx.pageIndex + 1, blank);
                 EditorUtility.SetDirty(ctx.vrcfComponent);
-                Debug.Log($"[VRCF QoL] Inserted empty flipbook page at #{ctx.pageIndex + 2}.");
+                VrcfQolLogger.Instance.Info($"Inserted empty flipbook page at #{ctx.pageIndex + 2}.");
             } catch (Exception ex) { Fail("Insert Empty Page Below", ex); }
         }
 
@@ -96,7 +96,7 @@ namespace UmeVrcfQol.Tools {
                 var clone = VrcfQol.DeepClonePage(ctx.pages[ctx.pageIndex]);
                 ctx.pages.Add(clone);
                 EditorUtility.SetDirty(ctx.vrcfComponent);
-                Debug.Log($"[VRCF QoL] Duplicated flipbook page #{ctx.pageIndex + 1} " +
+                VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.pageIndex + 1} " +
                           $"as page #{ctx.pages.Count}.");
             } catch (Exception ex) { Fail("Duplicate Page", ex); }
         }
@@ -127,13 +127,13 @@ namespace UmeVrcfQol.Tools {
                 r.PageStateField.SetValue(page, newState);
                 return page;
             } catch (Exception ex) {
-                Debug.LogException(ex);
+                VrcfQolLogger.Instance.Exception(ex);
                 return null;
             }
         }
 
         private static void Fail(string title, Exception ex) {
-            Debug.LogException(ex);
+            VrcfQolLogger.Instance.Exception(ex);
             EditorUtility.DisplayDialog(title, "Operation failed. See Console.\n\n" + ex.Message, "OK");
         }
     }

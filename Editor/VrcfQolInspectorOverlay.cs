@@ -317,7 +317,7 @@ namespace UmeVrcfQol {
             try {
                 spec.OnClick(ctx);
             } catch (System.Exception ex) {
-                Debug.LogException(ex);
+                VrcfQolLogger.Instance.Exception(ex);
                 EditorUtility.DisplayDialog("WhyKnot vrcfury-qol",
                     "Action failed. See Console.\n\n" + ex.Message, "OK");
             }
@@ -570,11 +570,11 @@ namespace UmeVrcfQol {
             var owner = FindOwningComponent(field);
             var ownerId = owner != null ? owner.GetInstanceID() : 0;
             if (owner != null) {
-                Debug.Log("[VRCF QoL] " + action + " click: path=" + actionPath +
+                VrcfQolLogger.Instance.Info(action + " click: path=" + actionPath +
                     " resolved to " + owner.gameObject.name + "/" + owner.GetType().Name +
                     " (instanceId=" + ownerId + ").");
             } else {
-                Debug.LogWarning("[VRCF QoL] " + action + " click: path=" + actionPath +
+                VrcfQolLogger.Instance.Warning(action + " click: path=" + actionPath +
                     " could NOT be tied to a specific VRCFury component via the editor wrapper walk. " +
                     "Falling back to first-match scan on the selected GameObject. " +
                     "If the wrong component gets operated on, the inspector's internal layout has changed.");
@@ -634,7 +634,7 @@ namespace UmeVrcfQol {
 
             if (firstMatch != null) {
                 if (owningComponentInstanceId != 0) {
-                    Debug.LogWarning("[VRCF QoL] Inline action resolver fell back to first-match scan on '" +
+                    VrcfQolLogger.Instance.Warning("Inline action resolver fell back to first-match scan on '" +
                         selection.name + "' -- EditorElement lookup missed for instance id " +
                         owningComponentInstanceId + ". If the wrong VRCFury component was operated on, " +
                         "the Unity internal type layout may have changed; report this so the resolver can be updated.");

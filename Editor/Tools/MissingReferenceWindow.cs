@@ -13,6 +13,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using WhyKnot.Core.Styling;
 
 namespace UmeVrcfQol.Tools {
 
@@ -68,6 +69,7 @@ namespace UmeVrcfQol.Tools {
         // ------ GUI ---------------------------------------------------------
 
         private void OnGUI() {
+            using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
             DrawHeader();
             DrawDivider();
             DrawList();
