@@ -15,6 +15,7 @@ using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
+using WhyKnot.Core.Utilities;
 
 namespace UmeVrcfQol.Tools {
 
@@ -97,7 +98,7 @@ namespace UmeVrcfQol.Tools {
             preview.AppendLine($"{sources.Count} toggle(s) will be migrated in hierarchy order:");
             foreach (var s in sources) {
                 preview.AppendLine("  • " + (string.IsNullOrEmpty(s.name) ? "(unnamed)" : s.name) +
-                                   "  [" + VrcfQol.GetGameObjectPath(s.component.gameObject) + "]");
+                                   "  [" + PathUtility.GetGameObjectPath(s.component.gameObject) + "]");
             }
             preview.AppendLine();
             preview.AppendLine("Source VRCFury components will be DELETED (Undo restores everything).");

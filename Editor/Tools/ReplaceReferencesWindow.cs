@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using WhyKnot.Core.Utilities;
 
 namespace UmeVrcfQol.Tools {
 
@@ -372,7 +373,7 @@ namespace UmeVrcfQol.Tools {
 
                     output.Add(new RefSite {
                         VrcfComponent  = vrcf,
-                        GameObjectPath = VrcfQol.GetGameObjectPath(vrcf.gameObject),
+                        GameObjectPath = PathUtility.GetGameObjectPath(vrcf.gameObject),
                         FeatureType    = GetEnclosingFeatureTypeName(so, iter.propertyPath),
                         PropertyPath   = iter.propertyPath,
                         CurrentValue   = current,

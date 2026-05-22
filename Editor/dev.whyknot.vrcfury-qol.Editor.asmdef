@@ -1,7 +1,9 @@
 {
     "name": "dev.whyknot.vrcfury-qol.Editor",
     "rootNamespace": "WhyKnot.VrcfQol",
-    "references": [],
+    "references": [
+        "dev.whyknot.core.Editor"
+    ],
     "includePlatforms": [
         "Editor"
     ],

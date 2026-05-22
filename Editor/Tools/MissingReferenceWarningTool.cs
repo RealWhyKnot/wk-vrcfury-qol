@@ -23,6 +23,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using WhyKnot.Core.Utilities;
 
 namespace UmeVrcfQol.Tools {
 
@@ -118,7 +119,7 @@ namespace UmeVrcfQol.Tools {
 
                     output.Add(new MissingRef {
                         VrcfComponent  = vrcf,
-                        GameObjectPath = VrcfQol.GetGameObjectPath(vrcf.gameObject),
+                        GameObjectPath = PathUtility.GetGameObjectPath(vrcf.gameObject),
                         FeatureType    = GetEnclosingFeatureTypeName(so, iter.propertyPath),
                         PropertyPath   = iter.propertyPath,
                         InstanceID     = iter.objectReferenceInstanceIDValue,

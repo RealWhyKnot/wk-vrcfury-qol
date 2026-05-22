@@ -27,6 +27,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using UmeVrcfQol.Tools;
+using WhyKnot.Core.Reflection;
 
 namespace UmeVrcfQol {
 
@@ -140,9 +141,9 @@ namespace UmeVrcfQol {
             }
 
             var anchored = new HashSet<Component>();
-            foreach (var wrapper in EnumerateEditorWrappers(root)) {
+            foreach (var wrapper in EditorElementWalker.EnumerateEditorWrappers(root)) {
                 if (wrapper.GetType().Name != "EditorElement") continue;
-                if (!TryGetEditorTarget(wrapper, out var comp)) continue;
+                if (!EditorElementWalker.TryGetEditorTarget(wrapper, out var comp)) continue;
                 if (!togglesOnSelection.Contains(comp)) continue;
                 if (anchored.Contains(comp)) continue;
                 BuildBannerInside(wrapper, comp);
@@ -167,47 +168,19 @@ namespace UmeVrcfQol {
             // Anchor the banner inside the InspectorElement (the editor's
             // content host) so it sits BELOW the component header rather
             // than above it, integrating with the VRCFury inspector body.
-            var host = FindInspectorContent(editorElement);
+            var host = EditorElementWalker.FindInspectorContent(editorElement);
             var banner = host.Q<VisualElement>(className: ToggleBannerClass);
             if (banner == null || !ReferenceEquals(banner.parent, host)) {
                 if (banner != null) banner.RemoveFromHierarchy();
                 banner = new VisualElement();
                 banner.AddToClassList(ToggleBannerClass);
-                ApplyBannerChromeStyle(banner);
+                EditorElementWalker.ApplyBannerChromeStyle(banner);
                 host.Insert(0, banner);
             }
             banner.userData = target;
             PopulateBanner(banner, target);
         }
 
-        private static VisualElement FindInspectorContent(VisualElement editorElement) {
-            foreach (var child in editorElement.Children()) {
-                if (child.GetType().Name == "InspectorElement") return child;
-            }
-            foreach (var desc in editorElement.Query<VisualElement>().ToList()) {
-                if (desc != editorElement && desc.GetType().Name == "InspectorElement") return desc;
-            }
-            return editorElement;
-        }
-
-        // Visual language: VRCFury action headers are dark grey one-line rows
-        // with a label on the left and a button on the right. The banner adopts
-        // the same chrome (no big colored bar competing with VRCFury's palette);
-        // a thin colored left edge conveys sync state without staining the row.
-        private static void ApplyBannerChromeStyle(VisualElement banner) {
-            banner.style.flexDirection = FlexDirection.Row;
-            banner.style.alignItems = Align.Center;
-            banner.style.paddingLeft = 6;
-            banner.style.paddingRight = 4;
-            banner.style.paddingTop = 2;
-            banner.style.paddingBottom = 2;
-            banner.style.marginTop = 0;
-            banner.style.marginBottom = 1;
-            banner.style.backgroundColor = new StyleColor(new Color(0.20f, 0.20f, 0.20f, 1f));
-            banner.style.borderLeftWidth = 3;
-            banner.style.borderBottomWidth = 1;
-            banner.style.borderBottomColor = new StyleColor(new Color(0, 0, 0, 0.35f));
-        }
 
         private static void PopulateBanner(VisualElement banner, Component target) {
             banner.Clear();
@@ -250,8 +223,8 @@ namespace UmeVrcfQol {
             previewBtn.tooltip = previewing
                 ? "Destroy the temporary preview copy and return to the original avatar."
                 : "Create a temporary avatar copy with this toggle applied. Does not move the Scene camera.";
-            ApplyInlineButtonStyle(previewBtn);
-            ApplyDangerButtonStyle(previewBtn, previewing);
+            EditorElementWalker.ApplyInlineButtonStyle(previewBtn);
+            EditorElementWalker.ApplyDangerButtonStyle(previewBtn, previewing);
             banner.Add(previewBtn);
 
             var optBtn = new Button(() => {
@@ -265,22 +238,10 @@ namespace UmeVrcfQol {
             optBtn.tooltip = optedOut
                 ? "Resume auto-syncing the Global Parameter with the Menu Path."
                 : "Stop auto-syncing the Global Parameter. The current value will not be touched.";
-            ApplyInlineButtonStyle(optBtn);
+            EditorElementWalker.ApplyInlineButtonStyle(optBtn);
             banner.Add(optBtn);
         }
 
-        // Shared inline-button chrome so the banner, page bar, and action
-        // tool buttons all read as the same control type.
-        private static void ApplyInlineButtonStyle(Button btn) {
-            btn.style.marginLeft = 4;
-            btn.style.marginTop = 0;
-            btn.style.marginBottom = 0;
-            btn.style.paddingLeft = 8;
-            btn.style.paddingRight = 8;
-            btn.style.paddingTop = 1;
-            btn.style.paddingBottom = 1;
-            btn.style.flexShrink = 0;
-        }
 
         // ----------------------------------------------------------------------
         // Per-page inline buttons
@@ -324,7 +285,7 @@ namespace UmeVrcfQol {
                     };
                     btn.userData = spec;
                     btn.tooltip = spec.Tooltip ?? string.Empty;
-                    ApplyInlineButtonStyle(btn);
+                    EditorElementWalker.ApplyInlineButtonStyle(btn);
                     buttons.Add(btn);
                 }
 
@@ -451,22 +412,10 @@ namespace UmeVrcfQol {
                 if (hasContext && spec.Danger != null) {
                     try { danger = spec.Danger(ctx); } catch { danger = false; }
                 }
-                ApplyDangerButtonStyle(btn, danger);
+                EditorElementWalker.ApplyDangerButtonStyle(btn, danger);
             }
         }
 
-        private static void ApplyDangerButtonStyle(Button btn, bool danger) {
-            if (danger) {
-                btn.style.backgroundColor = new StyleColor(new Color(0.64f, 0.10f, 0.10f, 1f));
-                btn.style.color = new StyleColor(Color.white);
-                btn.style.unityFontStyleAndWeight = FontStyle.Bold;
-                return;
-            }
-
-            btn.style.backgroundColor = new StyleColor(StyleKeyword.Null);
-            btn.style.color = new StyleColor(StyleKeyword.Null);
-            btn.style.unityFontStyleAndWeight = FontStyle.Normal;
-        }
 
         // ----------------------------------------------------------------------
         // Per-action inline duplicate button
@@ -512,7 +461,7 @@ namespace UmeVrcfQol {
                 };
                 btn.tooltip =
                     "Clone only this one VRCFury action, such as a single BlendShape or Material Swap, and insert the copy directly below it.";
-                ApplyInlineButtonStyle(btn);
+                EditorElementWalker.ApplyInlineButtonStyle(btn);
                 tools.Add(btn);
 
                 if (FlipbookActionPathRegex.IsMatch(bindingPath)) {
@@ -521,7 +470,7 @@ namespace UmeVrcfQol {
                     };
                     copyBtn.tooltip =
                         "Clone only this one action and append the copy to another page in this flipbook.";
-                    ApplyInlineButtonStyle(copyBtn);
+                    EditorElementWalker.ApplyInlineButtonStyle(copyBtn);
                     tools.Add(copyBtn);
                 }
 
@@ -601,57 +550,12 @@ namespace UmeVrcfQol {
         private static Component FindOwningComponent(VisualElement element) {
             var current = element;
             while (current != null) {
-                if (TryGetEditorTarget(current, out var comp)) return comp;
+                if (EditorElementWalker.TryGetEditorTarget(current, out var comp)) return comp;
                 current = current.parent;
             }
             return null;
         }
 
-        private static IEnumerable<VisualElement> EnumerateEditorWrappers(VisualElement root) {
-            if (root == null) yield break;
-            var stack = new Stack<VisualElement>();
-            stack.Push(root);
-            while (stack.Count > 0) {
-                var cur = stack.Pop();
-                var n = cur.GetType().Name;
-                if (n == "EditorElement" || n == "InspectorElement") yield return cur;
-                for (int i = 0; i < cur.childCount; i++) stack.Push(cur[i]);
-            }
-        }
-
-        private static bool TryGetEditorTarget(VisualElement element, out Component component) {
-            component = null;
-            if (element == null) return false;
-            var n = element.GetType().Name;
-            if (n != "EditorElement" && n != "InspectorElement") return false;
-
-            var t = element.GetType();
-            const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Public
-                                     | BindingFlags.Instance | BindingFlags.DeclaredOnly;
-            while (t != null && t != typeof(VisualElement)) {
-                foreach (var f in t.GetFields(flags)) {
-                    if (!typeof(Editor).IsAssignableFrom(f.FieldType)) continue;
-                    object value;
-                    try { value = f.GetValue(element); } catch { continue; }
-                    if (value is Editor ed && ed != null && ed.target is Component comp) {
-                        component = comp;
-                        return true;
-                    }
-                }
-                foreach (var p in t.GetProperties(flags)) {
-                    if (!p.CanRead || p.GetIndexParameters().Length > 0) continue;
-                    if (!typeof(Editor).IsAssignableFrom(p.PropertyType)) continue;
-                    object value;
-                    try { value = p.GetValue(element); } catch { continue; }
-                    if (value is Editor ed && ed != null && ed.target is Component comp) {
-                        component = comp;
-                        return true;
-                    }
-                }
-                t = t.BaseType;
-            }
-            return false;
-        }
 
         // Click-time resolver: defers the EditorElement walk until the user
         // actually clicks, when the visual tree is guaranteed to be fully

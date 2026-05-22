@@ -13,7 +13,8 @@
   "documentationUrl": "https://github.com/RealWhyKnot/vrcfury-qol",
   "changelogUrl": "https://github.com/RealWhyKnot/vrcfury-qol/blob/main/CHANGELOG.md",
   "vpmDependencies": {
-    "com.vrcfury.vrcfury": ">=1.1300.0"
+    "com.vrcfury.vrcfury": ">=1.1300.0",
+    "dev.whyknot.core": ">=1.0.0"
   },
   "keywords": [
     "vrchat",

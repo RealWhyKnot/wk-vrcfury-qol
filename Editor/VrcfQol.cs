@@ -459,15 +459,6 @@ namespace UmeVrcfQol {
             return null;
         }
 
-        internal static string GetGameObjectPath(GameObject go) {
-            if (go == null) return "(null)";
-            var parts = new List<string>();
-            var t = go.transform;
-            while (t != null) { parts.Add(t.name); t = t.parent; }
-            parts.Reverse();
-            return string.Join("/", parts);
-        }
-
         // =========================== Reflection cache =========================
         //
         // Exposed as an instance singleton (via the static `Reflection` property)

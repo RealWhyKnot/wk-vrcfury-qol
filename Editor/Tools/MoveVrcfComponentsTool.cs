@@ -35,6 +35,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
+using WhyKnot.Core.Utilities;
 
 namespace UmeVrcfQol.Tools {
 
@@ -132,8 +133,8 @@ namespace UmeVrcfQol.Tools {
                 }
                 Undo.CollapseUndoOperations(group);
                 Debug.Log($"[VRCF QoL] Moved {sources.Count} VRCFury component(s) " +
-                          $"from '{VrcfQol.GetGameObjectPath(source)}' to " +
-                          $"'{VrcfQol.GetGameObjectPath(destination)}' " +
+                          $"from '{PathUtility.GetGameObjectPath(source)}' to " +
+                          $"'{PathUtility.GetGameObjectPath(destination)}' " +
                           $"(mode: {(mode == Mode.WholeComponents ? "whole" : "merge")}).");
                 return sources.Count;
             } catch (Exception ex) {
@@ -241,7 +242,7 @@ namespace UmeVrcfQol.Tools {
 
             EditorGUILayout.LabelField(
                 new GUIContent("Source", "The GameObject currently holding the VRCFury components."),
-                new GUIContent(VrcfQol.GetGameObjectPath(_source)));
+                new GUIContent(PathUtility.GetGameObjectPath(_source)));
 
             using (new EditorGUI.DisabledScope(false)) {
                 _destination = (GameObject)EditorGUILayout.ObjectField(
