@@ -1,0 +1,20 @@
+{
+    "name": "dev.whyknot.vrcfury-qol.Tests.Editor",
+    "rootNamespace": "WhyKnot.VrcfQol.Tests",
+    "references": [
+        "dev.whyknot.vrcfury-qol.Editor",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -204,14 +204,52 @@ namespace UmeVrcfQol {
                 ? new Color(0.78f, 0.42f, 0.32f, 1f)
                 : new Color(0.42f, 0.70f, 0.45f, 1f));
 
-            var label = new Label(optedOut
-                ? "vrcfury-qol: Global Parameter sync off"
-                : "vrcfury-qol: Global Parameter auto-synced with Menu Path");
+            // Read this Toggle's actual state + the avatar's other Toggles so we
+            // can surface disambiguation / collision context. Cheap: one
+            // Resources scan per inspector repaint.
+            var avatarRoot = PreviewTool.FindAvatarRoot(target) ?? target.gameObject;
+            var avatarToggles = AutoGlobalParameterTool.CollectAvatarToggles(avatarRoot);
+            var myId = GlobalObjectId.GetGlobalObjectIdSlow(target).ToString();
+            ToggleInfo mine = default;
+            var foundMine = false;
+            foreach (var t in avatarToggles) {
+                if (t.GlobalObjectId == myId) { mine = t; foundMine = true; break; }
+            }
+
+            string headline, tooltip;
+            if (optedOut) {
+                headline = "vrcfury-qol: Global Parameter sync off";
+                tooltip = "Global Parameter is NOT being kept in sync with the Menu Path for this toggle. Click Turn on to resume syncing.";
+                if (foundMine && !string.IsNullOrEmpty(mine.CurrentGlobalParam)) {
+                    var collidesWithAnotherOptedOut = false;
+                    foreach (var t in avatarToggles) {
+                        if (t.GlobalObjectId == myId) continue;
+                        if (t.IsOptedOut && t.CurrentGlobalParam == mine.CurrentGlobalParam) {
+                            collidesWithAnotherOptedOut = true;
+                            break;
+                        }
+                    }
+                    if (collidesWithAnotherOptedOut) {
+                        headline += $" - still colliding on '{mine.CurrentGlobalParam}'";
+                        tooltip += $"\n\nAnother opted-out Toggle on this avatar also holds globalParam='{mine.CurrentGlobalParam}'. VRCFury will error at build. Enable sync on one of them to auto-disambiguate.";
+                    }
+                }
+            } else if (foundMine
+                       && !string.IsNullOrEmpty(mine.MenuPath)
+                       && !string.IsNullOrEmpty(mine.CurrentGlobalParam)
+                       && mine.CurrentGlobalParam != mine.MenuPath) {
+                headline = $"vrcfury-qol: Global Parameter auto-synced with Menu Path (renamed to '{mine.CurrentGlobalParam}' to avoid collision)";
+                tooltip = $"Another Toggle on this avatar already uses the menu-path name '{mine.MenuPath}'. To avoid a VRCFury build error, this Toggle's globalParam was set to '{mine.CurrentGlobalParam}'. Rename the menu path to take ownership of '{mine.MenuPath}' again.";
+            } else {
+                headline = "vrcfury-qol: Global Parameter auto-synced with Menu Path";
+                tooltip = "Keeps 'Use Global Parameter' checked and 'globalParam' equal to the Menu Path so VRCFury cannot wipe custom work during avatar updates.";
+            }
+
+            var label = new Label(headline);
             label.style.color = mutedText;
             label.style.flexGrow = 1;
-            label.tooltip = optedOut
-                ? "Global Parameter is NOT being kept in sync with the Menu Path for this toggle. Click Turn on to resume syncing."
-                : "Keeps 'Use Global Parameter' checked and 'globalParam' equal to the Menu Path so VRCFury cannot wipe custom work during avatar updates.";
+            label.style.whiteSpace = WhiteSpace.Normal;
+            label.tooltip = tooltip;
             banner.Add(label);
 
             var capturedTarget = target;

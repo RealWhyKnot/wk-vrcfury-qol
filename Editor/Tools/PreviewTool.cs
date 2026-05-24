@@ -475,7 +475,7 @@ namespace UmeVrcfQol.Tools {
             return true;
         }
 
-        private static GameObject FindAvatarRoot(Component component) {
+        internal static GameObject FindAvatarRoot(Component component) {
             if (component == null) return null;
             var animator = component.GetComponentInParent<Animator>(true);
             if (animator != null) return animator.gameObject;

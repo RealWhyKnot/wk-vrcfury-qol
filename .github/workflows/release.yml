@@ -110,6 +110,7 @@ jobs:
             --exclude='.vs' \
             --exclude='.idea' \
             --exclude='wiki' \
+            --exclude='Tests' \
             --exclude='CONTRIBUTING.md' \
             --exclude='staging' \
             --exclude='*.zip' \
