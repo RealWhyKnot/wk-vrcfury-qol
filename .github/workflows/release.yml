@@ -168,7 +168,6 @@ jobs:
             ${{ steps.beta.outputs.release_flags }}
 
       - name: Trigger VPM listing rebuild
-        if: ${{ steps.beta.outputs.is_beta != 'true' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.LISTING_DISPATCH_TOKEN || github.token }}
