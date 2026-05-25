@@ -2,18 +2,18 @@
 //
 // EditorWindow that lists every Object reference inside any VRCFury component
 // on a set of selected GameObjects, GROUPED BY the underlying object so each
-// unique reference appears once with one drop target. The user drags a
-// replacement onto the rows they want to swap and clicks Apply — every
+// unique reference appears once with one drop target. Dragging a
+// replacement onto the rows they want to swap and clicks Apply - every
 // occurrence of that object across the scan is replaced in a single Undo step.
 //
 // Per-selection "include children" toggles let you scan a GameObject without
-// recursing into its descendants — useful when two avatars share a parent or
+// recursing into its descendants - useful when two avatars share a parent or
 // when you want to pin the scan to a single component.
 //
 // Why SerializedObject + SerializedProperty.NextVisible(true) instead of raw
 // reflection: VRCFury features are [SerializeReference] polymorphic graphs,
 // and Unity's SerializedProperty already descends into them safely. This is
-// also future-proof — if VRCFury renames internal fields but keeps them
+// also future-proof - if VRCFury renames internal fields but keeps them
 // serialized, the walk still works because we only care about
 // `propertyType == ObjectReference`.
 
@@ -26,15 +26,15 @@ using UmeVrcfQol.Internal.Utilities;
 
 namespace UmeVrcfQol.Tools {
 
-    internal sealed class ReplaceReferencesWindow : EditorWindow {
+    internal sealed partial class ReplaceReferencesWindow : EditorWindow {
 
         // Persisted across domain reloads so the search list survives a script
         // recompile while the window is open.
         [SerializeField] private List<SearchRoot> _searchRoots = new List<SearchRoot>();
 
         // Scan output. Groups are recomputed on every scan; replacements live
-        // on each group and are dropped on rescan (intentional — a domain
-        // reload may have invalidated the user's queued replacement target).
+        // on each group and are dropped on rescan (intentional - a domain
+        // reload may have invalidated a queued replacement target).
         private readonly List<RefGroup> _groups = new List<RefGroup>();
         private bool _hideUnchanged;
         private string _scanSummary = "";
@@ -288,208 +288,7 @@ namespace UmeVrcfQol.Tools {
             EditorGUI.DrawRect(rect, new Color(0, 0, 0, 0.06f));
         }
 
-        // ---------------- Scan ---------------------------------------------
 
-        private void Rescan() {
-            _groups.Clear();
-            if (_searchRoots.Count == 0) { _scanSummary = ""; return; }
 
-            if (!VrcfQol.Reflection.TryEnsure(out var error)) {
-                _scanSummary = error;
-                return;
-            }
-            var r = VrcfQol.Reflection;
-
-            int componentsScanned = 0;
-            int rootsActive = 0;
-            var seenComponents = new HashSet<Component>();
-            // Buffer all sites first, then bucket by CurrentValue. A dict
-            // keyed by Object identity would be cleaner, but Unity's Object
-            // overrides == in ways that make dict-keys fragile across
-            // destruction; running a linear search at scan time is fine —
-            // counts are tiny relative to property iteration cost.
-            var sites = new List<RefSite>();
-            foreach (var entry in _searchRoots) {
-                var root = entry.GameObject;
-                if (root == null) continue;
-                rootsActive++;
-                Component[] components;
-                if (entry.IncludeChildren) {
-                    components = root.GetComponentsInChildren(r.VRCFuryType, true);
-                } else {
-                    components = root.GetComponents(r.VRCFuryType);
-                }
-                foreach (var c in components) {
-                    if (c == null || !seenComponents.Add(c)) continue;
-                    componentsScanned++;
-                    ScanComponent(c, sites);
-                }
-            }
-
-            // Group by CurrentValue. Use SequenceEqual via reference identity
-            // (Object's == handles the destroyed-object case).
-            foreach (var s in sites) {
-                var existing = _groups.FirstOrDefault(g => g.CurrentValue == s.CurrentValue);
-                if (existing == null) {
-                    existing = new RefGroup { CurrentValue = s.CurrentValue };
-                    _groups.Add(existing);
-                }
-                existing.Sites.Add(s);
-            }
-
-            // Stable, predictable ordering: by current value type, then name,
-            // then deterministic site path so two identical-looking groups
-            // still sort the same way across rescans.
-            _groups.Sort((a, b) => {
-                int t = string.Compare(
-                    a.CurrentValue == null ? "" : a.CurrentValue.GetType().Name,
-                    b.CurrentValue == null ? "" : b.CurrentValue.GetType().Name,
-                    System.StringComparison.Ordinal);
-                if (t != 0) return t;
-                int n = string.Compare(
-                    a.CurrentValue == null ? "" : a.CurrentValue.name,
-                    b.CurrentValue == null ? "" : b.CurrentValue.name,
-                    System.StringComparison.Ordinal);
-                if (n != 0) return n;
-                return string.Compare(
-                    a.Sites.Count > 0 ? a.Sites[0].PropertyPath : "",
-                    b.Sites.Count > 0 ? b.Sites[0].PropertyPath : "",
-                    System.StringComparison.Ordinal);
-            });
-            foreach (var g in _groups) {
-                g.Sites.Sort((x, y) => string.Compare(x.PropertyPath, y.PropertyPath, System.StringComparison.Ordinal));
-            }
-
-            _scanSummary = $"Scanned {componentsScanned} VRCFury component(s) across {rootsActive} root(s).";
-        }
-
-        private static void ScanComponent(Component vrcf, List<RefSite> output) {
-            using (var so = new SerializedObject(vrcf)) {
-                var iter = so.GetIterator();
-                if (!iter.NextVisible(true)) return;
-                do {
-                    if (iter.propertyType != SerializedPropertyType.ObjectReference) continue;
-                    var current = iter.objectReferenceValue;
-                    if (current == null) continue;
-                    if (iter.propertyPath == "m_Script") continue;
-
-                    output.Add(new RefSite {
-                        VrcfComponent  = vrcf,
-                        GameObjectPath = PathUtility.GetGameObjectPath(vrcf.gameObject),
-                        FeatureType    = GetEnclosingFeatureTypeName(so, iter.propertyPath),
-                        PropertyPath   = iter.propertyPath,
-                        CurrentValue   = current,
-                    });
-                } while (iter.NextVisible(true));
-            }
-        }
-
-        private static string GetEnclosingFeatureTypeName(SerializedObject so, string propertyPath) {
-            string parent = propertyPath;
-            while (true) {
-                int dot = parent.LastIndexOf('.');
-                if (dot < 0) break;
-                parent = parent.Substring(0, dot);
-                var p = so.FindProperty(parent);
-                if (p == null) continue;
-                if (p.propertyType == SerializedPropertyType.ManagedReference) {
-                    return ShortenManagedReferenceTypeName(p.managedReferenceFullTypename);
-                }
-            }
-            return "VRCFury";
-        }
-
-        private static string ShortenManagedReferenceTypeName(string fullName) {
-            if (string.IsNullOrEmpty(fullName)) return "VRCFury";
-            int space = fullName.LastIndexOf(' ');
-            string typeName = space >= 0 ? fullName.Substring(space + 1) : fullName;
-            int lastDot = typeName.LastIndexOf('.');
-            return lastDot >= 0 ? typeName.Substring(lastDot + 1) : typeName;
-        }
-
-        // ---------------- Apply --------------------------------------------
-
-        private void Apply() {
-            var queuedGroups = _groups.Where(g => g.HasReplacement).ToList();
-            if (queuedGroups.Count == 0) return;
-
-            // Flatten to (component, propertyPath, expectedCurrent, replacement)
-            // tuples grouped by component for one SerializedObject per component.
-            var flat = queuedGroups
-                .SelectMany(g => g.Sites.Select(s => (Site: s, Replacement: g.Replacement)))
-                .Where(x => x.Site.VrcfComponent != null)
-                .ToList();
-
-            int group = Undo.GetCurrentGroup();
-            Undo.SetCurrentGroupName("VRCF QoL: Replace VRCFury references");
-
-            int applied = 0;
-            int skipped = 0;
-            try {
-                foreach (var byComp in flat.GroupBy(x => x.Site.VrcfComponent)) {
-                    using (var so = new SerializedObject(byComp.Key)) {
-                        bool anyChanged = false;
-                        foreach (var x in byComp) {
-                            var prop = so.FindProperty(x.Site.PropertyPath);
-                            if (prop == null) { skipped++; continue; }
-                            if (prop.propertyType != SerializedPropertyType.ObjectReference) {
-                                skipped++; continue;
-                            }
-                            // Snapshot guard: if the current value drifted between
-                            // scan and apply, refuse rather than overwrite something
-                            // the user didn't see.
-                            if (prop.objectReferenceValue != x.Site.CurrentValue) { skipped++; continue; }
-                            prop.objectReferenceValue = x.Replacement;
-                            applied++;
-                            anyChanged = true;
-                        }
-                        if (anyChanged) so.ApplyModifiedProperties();
-                    }
-                }
-                Undo.CollapseUndoOperations(group);
-            } catch (System.Exception ex) {
-                Undo.RevertAllInCurrentGroup();
-                VrcfQolLogger.Instance.Exception(ex);
-                EditorUtility.DisplayDialog("Replace References",
-                    "Apply failed; changes reverted.\n\n" + ex.Message, "OK");
-                return;
-            }
-
-            string skipNote = skipped > 0 ? $" Skipped {skipped} stale entr{(skipped == 1 ? "y" : "ies")}." : "";
-            VrcfQolLogger.Instance.Info($"Replaced {applied} reference(s) across {queuedGroups.Count} unique object(s)." + skipNote);
-
-            // Re-scan: groups that were fully applied disappear (their old refs
-            // no longer exist); the new value may itself become a group if it
-            // overlaps with anything else on the scan roots.
-            Rescan();
-        }
-
-        // ---------------- Records ------------------------------------------
-
-        [System.Serializable]
-        private sealed class SearchRoot {
-            public GameObject GameObject;
-            public bool IncludeChildren = true;
-        }
-
-        // A single property-path occurrence inside a VRCFury component.
-        private sealed class RefSite {
-            public Component VrcfComponent;
-            public string GameObjectPath;
-            public string FeatureType;
-            public string PropertyPath;
-            public Object CurrentValue;
-        }
-
-        // All the occurrences that share the same CurrentValue, plus the user's
-        // queued replacement. The unit the UI displays.
-        private sealed class RefGroup {
-            public Object CurrentValue;
-            public readonly List<RefSite> Sites = new List<RefSite>();
-            public Object Replacement;
-            public bool Foldout;
-
-            public bool HasReplacement => Replacement != null && Replacement != CurrentValue;
-        }
     }
 }
