@@ -22,6 +22,7 @@ All notable changes to this project will be documented in this file. Format foll
 
 ### Fixed
 - **overlay+ci:** De-dup Toggle banner, autoload logger version (1.1.0-beta.5) (7fd7811)
+- **logger:** Qualify PackageInfo to avoid ambiguity with UnityEditor.PackageInfo (4ff15bc)
 
 ---
 
