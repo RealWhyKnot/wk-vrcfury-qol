@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file. Format foll
 ## Unreleased
 
 ### Changed
+- Bundled `Editor/Internal/` refreshed from the wk-core 1.2.0 source. Picks up an NDMF-`ErrorReport`-shaped scope stack on top of `WkLogger` (`WkLogContext`, `BeginTask`, `InfoBlock` / `WarningBlock` / `ErrorBlock`); new utility helpers (`MeshUtility`, `BlendShapeUtility`, `FolderUtility`, `UndoUtility`); new reflection helpers (`WkReflection`, `WkReflectionCache`, `WkGlobalId`, `WkJsonClone`); an `EditorApplication.update` ticker (`WkEditorTicker`) and a typed `EditorPrefs` wrapper (`WkEditorPrefs` + `WkSessionState`); a `WkToolWindow` / `WkInspectorEditor` / `WkMenuPaths` scaffolding tier; thirteen new `WkStyles` primitives (`SubtleDivider`, `Foldout`, `TwoColumn`, `SearchField`, `TabBar`, `ProgressBar`, `ObjectFieldRow`, `DangerButtonInline`, `SecondaryButtonInline`, `StatusBanner`, `Checker`, `RectBorder`, `TitleBar`) and four new `GUIStyle`s (`Caption`, `Code`, `TitleBarStyle`, `RowAlt`); a broadened theme palette (`DividerSubtle`, `BackgroundEmphasis`, `ButtonHover`) and a `NoticeKind.Danger` value; and theme-routed `EditorElementWalker` chrome that reads from `WkStyles.Current` instead of baking the VRCFury palette in literals. No user-visible behaviour change in this version -- the existing tool code still uses the prior API surface. Future feature work picks up these helpers.
 - Split the four large editor files into per-concern partial classes (1ce59bd)
 
 ---
