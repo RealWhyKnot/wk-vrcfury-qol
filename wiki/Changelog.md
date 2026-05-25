@@ -11,6 +11,12 @@ The most recent release is at the top.
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.1](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.1) -- 2026-05-25
+
 ### Fixed
 - **Hot reload status menu collision**: `WkHotReloadStatus.cs` carried a `[MenuItem("Window/WhyKnot/Hot Reload Status")]` attribute that Unity refused on a second registration ("a menu item with the same name already exists") whenever both vrcfury-qol and avatar-qol were installed in the same project -- their two synced copies of the file both tried to register the identical menu path. The attribute moves out of the synced source file; this package now wires its own `Window/WhyKnot/VRCFury QoL/Hot Reload Status` entry from non-synced code so the two packages stop racing for the path.
 
