@@ -17,7 +17,10 @@ namespace UmeVrcfQol.Internal.HotReload {
 
     public sealed class WkHotReloadStatus : EditorWindow {
 
-        [MenuItem("Window/WhyKnot/Hot Reload Status")]
+        // No [MenuItem] here -- the downstream wires its own menu path
+        // (Window/WhyKnot/<DisplayName>/Hot Reload Status) from its
+        // non-synced code so two synced copies of this file don't race
+        // for the same menu path when both downstreams are installed.
         public static void Open() {
             var w = GetWindow<WkHotReloadStatus>(false, "Hot Reload Status");
             w.minSize = new Vector2(460, 360);

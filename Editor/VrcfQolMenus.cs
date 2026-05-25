@@ -9,6 +9,7 @@
 // menu item and its own WhyKnot/VRCFury QoL Project Settings page.
 
 using UnityEditor;
+using UmeVrcfQol.Internal.HotReload;
 using UmeVrcfQol.Internal.Logging;
 using UmeVrcfQol.Internal.Settings;
 
@@ -18,6 +19,9 @@ namespace UmeVrcfQol {
 
         [MenuItem("Window/WhyKnot/VRCFury QoL/Logs")]
         public static void OpenLogViewer() => WkLogViewerWindow.Open();
+
+        [MenuItem("Window/WhyKnot/VRCFury QoL/Hot Reload Status")]
+        public static void OpenHotReloadStatus() => WkHotReloadStatus.Open();
 
         [SettingsProvider]
         public static SettingsProvider CreateSettings() => WkSettingsProvider.Build("WhyKnot/VRCFury QoL");
