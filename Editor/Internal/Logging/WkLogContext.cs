@@ -25,10 +25,10 @@ namespace UmeVrcfQol.Internal.Logging {
     public static class WkLogContext {
 
         [ThreadStatic] private static List<string> _scopeStack;
-        [ThreadStatic] private static List<Object> _contextStack;
+        [ThreadStatic] private static List<UnityEngine.Object> _contextStack;
 
         private static List<string> Scopes  => _scopeStack  ??= new List<string>();
-        private static List<Object> Objects => _contextStack ??= new List<Object>();
+        private static List<UnityEngine.Object> Objects => _contextStack ??= new List<UnityEngine.Object>();
 
         /// <summary>
         /// Push <paramref name="label"/> onto the scope stack. Pops on
@@ -49,7 +49,7 @@ namespace UmeVrcfQol.Internal.Logging {
         /// Console mirror uses the two-arg LogXxx variants so clicking
         /// the console line pings the object in the Hierarchy.
         /// </summary>
-        public static IDisposable WithContextObject(Object context) {
+        public static IDisposable WithContextObject(UnityEngine.Object context) {
             if (context == null) return NoopScope.Instance;
             Objects.Add(context);
             return new ObjectPop(Objects.Count - 1);
@@ -59,7 +59,7 @@ namespace UmeVrcfQol.Internal.Logging {
         public static IReadOnlyList<string> CurrentScopes => Scopes;
 
         /// <summary>Most-recent non-null context object on the stack, or null when none is active.</summary>
-        public static Object CurrentContextObject {
+        public static UnityEngine.Object CurrentContextObject {
             get {
                 var list = Objects;
                 for (int i = list.Count - 1; i >= 0; i--) {

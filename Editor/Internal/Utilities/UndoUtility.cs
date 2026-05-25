@@ -64,7 +64,7 @@ namespace UmeVrcfQol.Internal.Utilities {
         /// <paramref name="target"/>. Call before the property write so
         /// Unity captures the pre-change value. No-op on null target.
         /// </summary>
-        public static void RecordPropertyChange(Object target, string label) {
+        public static void RecordPropertyChange(UnityEngine.Object target, string label) {
             if (target == null) return;
             Undo.RecordObject(target, label ?? "Property Change");
         }
