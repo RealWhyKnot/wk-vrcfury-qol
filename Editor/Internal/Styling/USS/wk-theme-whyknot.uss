@@ -1,0 +1,46 @@
+/*
+ * wk-theme-whyknot.uss
+ *
+ * WhyKnot brand palette (black / gray / light blue) expressed as CSS
+ * variables. Scoped under .wk-theme--whyknot so a root element carrying
+ * both .wk-theme--whyknot and a .wk-skin--{pro,personal} class picks
+ * up the matching variant.
+ *
+ * Values mirror WkTheme.WhyKnot.{Pro,Personal} -- update both sides in
+ * lockstep when the palette shifts so IMGUI and UI Toolkit emit the
+ * same colours.
+ */
+
+.wk-theme--whyknot.wk-skin--pro {
+    --wk-color-background:         rgb(41, 41, 46);
+    --wk-color-background-alt:     rgb(56, 56, 64);
+    --wk-color-background-emphasis: rgb(66, 66, 77);
+    --wk-color-accent:             rgb(107, 173, 255);
+    --wk-color-warning:            rgb(217, 166, 77);
+    --wk-color-success:            rgb(107, 191, 128);
+    --wk-color-info:               rgb(153, 166, 191);
+    --wk-color-danger:             rgb(217, 77, 77);
+    --wk-color-divider:            rgba(255, 255, 255, 0.10);
+    --wk-color-divider-subtle:     rgba(255, 255, 255, 0.05);
+    --wk-color-text-primary:       rgb(235, 235, 240);
+    --wk-color-text-muted:         rgb(166, 166, 173);
+    --wk-color-border:             rgb(26, 26, 31);
+    --wk-color-button-hover:       rgb(77, 77, 87);
+}
+
+.wk-theme--whyknot.wk-skin--personal {
+    --wk-color-background:         rgb(242, 242, 245);
+    --wk-color-background-alt:     rgb(230, 230, 235);
+    --wk-color-background-emphasis: rgb(219, 219, 224);
+    --wk-color-accent:             rgb(51, 140, 242);
+    --wk-color-warning:            rgb(217, 153, 51);
+    --wk-color-success:            rgb(64, 153, 89);
+    --wk-color-info:               rgb(128, 140, 166);
+    --wk-color-danger:             rgb(204, 64, 64);
+    --wk-color-divider:            rgba(0, 0, 0, 0.15);
+    --wk-color-divider-subtle:     rgba(0, 0, 0, 0.06);
+    --wk-color-text-primary:       rgb(26, 26, 31);
+    --wk-color-text-muted:         rgb(102, 102, 115);
+    --wk-color-border:             rgb(191, 191, 199);
+    --wk-color-button-hover:       rgb(209, 209, 219);
+}

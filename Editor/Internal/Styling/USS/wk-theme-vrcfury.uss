@@ -1,0 +1,48 @@
+/*
+ * wk-theme-vrcfury.uss
+ *
+ * VRCFury-matching palette (dark-gray row chrome + warm accents)
+ * expressed as CSS variables. Scoped under .wk-theme--vrcfury so a
+ * root element carrying both .wk-theme--vrcfury and a
+ * .wk-skin--{pro,personal} class picks up the matching variant.
+ *
+ * Values mirror WkTheme.VRCFury.{Pro,Personal}. VRCFury itself doesn't
+ * publish a stable source-of-truth for its inspector colours, so this
+ * palette is hand-tuned to match VRCFury's current chrome visually
+ * rather than derived; if VRCFury shifts its colours the constants
+ * here update in lockstep.
+ */
+
+.wk-theme--vrcfury.wk-skin--pro {
+    --wk-color-background:         rgb(51, 51, 51);
+    --wk-color-background-alt:     rgb(64, 64, 64);
+    --wk-color-background-emphasis: rgb(71, 71, 71);
+    --wk-color-accent:             rgb(115, 166, 217);
+    --wk-color-warning:            rgb(199, 138, 46);
+    --wk-color-success:            rgb(107, 179, 115);
+    --wk-color-info:               rgb(140, 140, 140);
+    --wk-color-danger:             rgb(163, 26, 26);
+    --wk-color-divider:            rgba(0, 0, 0, 0.35);
+    --wk-color-divider-subtle:     rgba(0, 0, 0, 0.18);
+    --wk-color-text-primary:       rgb(235, 235, 235);
+    --wk-color-text-muted:         rgb(199, 199, 199);
+    --wk-color-border:             rgba(0, 0, 0, 0.50);
+    --wk-color-button-hover:       rgb(82, 82, 82);
+}
+
+.wk-theme--vrcfury.wk-skin--personal {
+    --wk-color-background:         rgb(217, 217, 217);
+    --wk-color-background-alt:     rgb(199, 199, 199);
+    --wk-color-background-emphasis: rgb(184, 184, 184);
+    --wk-color-accent:             rgb(77, 128, 191);
+    --wk-color-warning:            rgb(199, 138, 46);
+    --wk-color-success:            rgb(77, 153, 89);
+    --wk-color-info:               rgb(115, 115, 115);
+    --wk-color-danger:             rgb(166, 38, 38);
+    --wk-color-divider:            rgba(0, 0, 0, 0.25);
+    --wk-color-divider-subtle:     rgba(0, 0, 0, 0.10);
+    --wk-color-text-primary:       rgb(31, 31, 31);
+    --wk-color-text-muted:         rgb(89, 89, 89);
+    --wk-color-border:             rgb(115, 115, 115);
+    --wk-color-button-hover:       rgb(235, 235, 235);
+}

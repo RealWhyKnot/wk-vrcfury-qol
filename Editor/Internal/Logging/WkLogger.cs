@@ -61,6 +61,14 @@ namespace UmeVrcfQol.Internal.Logging {
         private readonly object _writeLock = new object();
         private readonly StringBuilder _builder = new StringBuilder(256);
 
+        // Long-lived buffered writer. Opened in the ctor, flushed + closed
+        // on domain reload, editor quit, and play-mode entry; reopened on
+        // edit-mode re-entry. Warning/Error/Exception lines flush
+        // immediately so bug-report-relevant content is always on disk;
+        // Debug/Info are eventually consistent.
+        private StreamWriter _writer;
+        private bool _writerOpen;
+
         public string PackageId => _packageId;
         public string DisplayName => _displayName;
         public string LogFilePath => _logFilePath;
@@ -100,8 +108,69 @@ namespace UmeVrcfQol.Internal.Logging {
             }
 
             _logFilePath = Path.Combine(_logDirectory, BuildSessionFileName(DateTime.Now));
+            OpenWriter();
             WriteSessionHeader();
+            Flush();   // header is on-disk immediately so anything reading the path right after construction sees it
             WkLoggerRegistry.Register(this);
+            SubscribeLifecycle();
+        }
+
+        // ---- buffered writer + lifecycle ----------------------------
+
+        private void OpenWriter() {
+            lock (_writeLock) {
+                if (_writerOpen) return;
+                try {
+                    // FileShare.ReadWrite lets other processes (Unity itself,
+                    // a log viewer tailing the file, the test harness reading
+                    // it via File.ReadAllText) open the same file for reading
+                    // while we have the writer open. Without ReadWrite we
+                    // trip Sharing violation on Windows the moment any other
+                    // hand reaches for the file.
+                    var stream = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                    _writer = new StreamWriter(stream) { AutoFlush = false };
+                    _writerOpen = true;
+                } catch {
+                    // Disk full / locked / permission issue -- WriteLineToFile
+                    // will fall back to the open-per-line path so we still log.
+                    _writer = null;
+                    _writerOpen = false;
+                }
+            }
+        }
+
+        private void FlushAndCloseWriter() {
+            lock (_writeLock) {
+                if (!_writerOpen || _writer == null) { _writer = null; _writerOpen = false; return; }
+                try { _writer.Flush(); } catch { /* ignore */ }
+                try { _writer.Dispose(); } catch { /* ignore */ }
+                _writer = null;
+                _writerOpen = false;
+            }
+        }
+
+        private void SubscribeLifecycle() {
+            AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+            EditorApplication.quitting               += OnEditorQuitting;
+            EditorApplication.playModeStateChanged   += OnPlayModeStateChanged;
+        }
+
+        // Test fixtures and one-off WkLogger instances never dispose
+        // themselves. The handlers stay subscribed until domain reload --
+        // which is fine: on reload the registry rebuilds anyway and the
+        // dead handlers are garbage-collected with the assembly.
+
+        private void OnBeforeAssemblyReload()              => FlushAndCloseWriter();
+        private void OnEditorQuitting()                    => FlushAndCloseWriter();
+        private void OnPlayModeStateChanged(PlayModeStateChange change) {
+            switch (change) {
+                case PlayModeStateChange.ExitingEditMode:
+                    FlushAndCloseWriter();
+                    break;
+                case PlayModeStateChange.EnteredEditMode:
+                    OpenWriter();
+                    break;
+            }
         }
 
         // ---- level entry points -------------------------------------
@@ -140,7 +209,7 @@ namespace UmeVrcfQol.Internal.Logging {
                 : $"{context} -- {ex.GetType().Name}: {ex.Message}";
             Write(WkLogLevel.Error, headline, member, file, line);
             WriteLineToFile(ex.StackTrace ?? "(no stack trace)");
-            WriteLineToFile("");  // blank line separator after stack
+            WriteLineToFile("", flushImmediately: true);  // blank separator; flush so the full stack lands on disk before any subsequent crash
             if (MirrorExceptionToConsole) {
                 var contextObject = WkLogContext.CurrentContextObject;
                 if (contextObject != null) UnityEngine.Debug.LogException(ex, contextObject);
@@ -264,7 +333,11 @@ namespace UmeVrcfQol.Internal.Logging {
                 _builder.Append(' ').Append(scopePrefix).Append(message);
                 formatted = _builder.ToString();
             }
-            WriteLineToFile(formatted);
+            // Warning, Error, Exception flush immediately -- a crash before
+            // the next flush still preserves the relevant lines. Debug, Info
+            // are eventually consistent.
+            bool flushNow = level == WkLogLevel.Warning || level == WkLogLevel.Error;
+            WriteLineToFile(formatted, flushNow);
             MirrorToConsole(level, message);
         }
 
@@ -310,9 +383,22 @@ namespace UmeVrcfQol.Internal.Logging {
         }
 
         private void WriteLineToFile(string line) {
+            WriteLineToFile(line, flushImmediately: false);
+        }
+
+        private void WriteLineToFile(string line, bool flushImmediately) {
             lock (_writeLock) {
                 try {
-                    using (var fs = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.Read))
+                    if (_writerOpen && _writer != null) {
+                        _writer.WriteLine(line);
+                        if (flushImmediately) _writer.Flush();
+                        return;
+                    }
+                    // Fallback path: writer never opened (early-init crash,
+                    // disk error, paused state). Open-per-line so we still
+                    // capture content -- skipped flushes simply mean the
+                    // log file lags a few lines behind events.
+                    using (var fs = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
                     using (var writer = new StreamWriter(fs)) {
                         writer.WriteLine(line);
                     }
@@ -320,6 +406,21 @@ namespace UmeVrcfQol.Internal.Logging {
                     // Never let logging throw -- if the disk is full or
                     // the file is locked, we'd rather drop a line than
                     // crash the editor.
+                }
+            }
+        }
+
+        /// <summary>
+        /// Flush any buffered lines to disk. Called automatically on
+        /// Warning/Error/Exception and on the documented lifecycle hooks;
+        /// also exposed so callers about to do something risky (long
+        /// blocking call, native interop, etc.) can ensure the audit
+        /// trail is durable first.
+        /// </summary>
+        public void Flush() {
+            lock (_writeLock) {
+                if (_writerOpen && _writer != null) {
+                    try { _writer.Flush(); } catch { /* ignore */ }
                 }
             }
         }

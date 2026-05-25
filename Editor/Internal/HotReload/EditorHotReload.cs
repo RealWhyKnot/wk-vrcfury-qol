@@ -52,7 +52,7 @@ namespace UmeVrcfQol.Internal.HotReload {
         // bundled into a downstream package writes to a per-package log
         // directory automatically. The wk-core copy logs under
         // "WhyKnot/Logs/dev.whyknot.core.hotreload"; a copy inside
-        // dev.whyknot.wk-vrc-qol logs under that package's name instead.
+        // dev.whyknot.avatar-qol logs under that package's name instead.
         // No need to rewrite the constant when the sync script copies
         // this file into a downstream.
         private static readonly string LogSubpath = "WhyKnot/Logs/" + ResolveAsmIdentity() + ".hotreload";
@@ -65,12 +65,41 @@ namespace UmeVrcfQol.Internal.HotReload {
             }
         }
 
+        private const int WatcherBufferSize = 64 * 1024;   // up from FileSystemWatcher's 8 KB default
+        private const int MaxErrorRetries = 3;
+        private const double ErrorRetryCooldownSeconds = 60;
+        private const int RecentEventBuffer = 50;
+
         private static readonly List<FileSystemWatcher> _watchers = new List<FileSystemWatcher>();
+        private static readonly Dictionary<FileSystemWatcher, WatcherState> _watcherState = new Dictionary<FileSystemWatcher, WatcherState>();
         private static volatile bool _pendingRefresh;
         private static double _refreshDueAt;
         private static int _refreshCounter;
         private static string _logPath;
         private static readonly object _writeLock = new object();
+
+        // ---- diagnostic state exposed to the status viewer ----------
+
+        internal static int RefreshCount => _refreshCounter;
+        internal static string LogFilePath => _logPath;
+        internal static IReadOnlyList<RecentEvent> RecentEvents => _recentEvents;
+        internal static string LastCompileResult { get; private set; } = "(no compile yet)";
+
+        private static readonly List<RecentEvent> _recentEvents = new List<RecentEvent>(RecentEventBuffer);
+
+        public struct RecentEvent {
+            public DateTime When;
+            public string Kind;     // Changed / Created / Deleted / Renamed
+            public string Path;
+        }
+
+        private sealed class WatcherState {
+            public string Root;
+            public string Label;
+            public string FilterDescription;
+            public int ErrorRetryCount;
+            public DateTime FirstErrorAtUtc;
+        }
 
         static EditorHotReload() {
             InitLogFile();
@@ -107,6 +136,19 @@ namespace UmeVrcfQol.Internal.HotReload {
                 LogException(ex, "[Watcher] Failed to derive Packages path");
             }
 
+            // Allow disabling via WkEditorPrefs-style toggle so the
+            // WkSettingsProvider's "Enable hot-reload watcher" toggle has
+            // an effect on next Editor startup.
+            if (!UnityEditor.EditorPrefs.GetBool("dev.whyknot.core.settings.hot-reload-enabled", true)) {
+                LogInfo("Hot-reload watcher disabled via settings; tearing down watchers.");
+                foreach (var w in _watchers) {
+                    try { w.EnableRaisingEvents = false; w.Dispose(); } catch { /* ignore */ }
+                }
+                _watchers.Clear();
+                _watcherState.Clear();
+                return;
+            }
+
             EditorApplication.update += Tick;
             CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompiled;
             CompilationPipeline.compilationStarted += OnCompileStarted;
@@ -116,41 +158,87 @@ namespace UmeVrcfQol.Internal.HotReload {
         }
 
         private static void StartWatcher(string root, string label) {
+            // Single watcher per root with Filter = "*" so we can react to
+            // .cs and .asmdef / .asmref changes in one place; ShouldIgnore
+            // gates everything else (.meta, .TMP, ~ -prefixed) plus we
+            // additionally screen for the extensions we care about in OnChange.
             try {
                 var w = new FileSystemWatcher(root) {
                     IncludeSubdirectories = true,
-                    Filter = "*.cs",
+                    Filter = "*",
                     NotifyFilter = NotifyFilters.LastWrite
                                  | NotifyFilters.FileName
                                  | NotifyFilters.Size
                                  | NotifyFilters.CreationTime,
+                    InternalBufferSize = WatcherBufferSize,
                     EnableRaisingEvents = true,
                 };
                 w.Changed += OnChange;
                 w.Created += OnChange;
                 w.Deleted += OnChange;
                 w.Renamed += OnRename;
-                w.Error   += (s, e) => LogWarn($"[Watcher:{label}] Error: {e.GetException()?.Message}");
+                w.Error   += (s, e) => OnWatcherError(w, e);
                 _watchers.Add(w);
-                LogInfo($"[Watcher] Active on {root} ({label})");
+                _watcherState[w] = new WatcherState {
+                    Root = root,
+                    Label = label,
+                    FilterDescription = "*.cs / *.asmdef / *.asmref",
+                };
+                LogInfo($"[Watcher] Active on {root} ({label}, buffer={WatcherBufferSize / 1024} KB)");
             } catch (Exception ex) {
                 LogException(ex, $"[Watcher] Failed to start on {root}");
             }
+        }
+
+        private static void OnWatcherError(FileSystemWatcher offender, ErrorEventArgs args) {
+            var ex = args.GetException();
+            _watcherState.TryGetValue(offender, out var state);
+            var label = state?.Label ?? "?";
+            var root = state?.Root ?? "(unknown)";
+            LogWarn($"[Watcher:{label}] Error: {ex?.Message ?? "(no message)"}");
+
+            // Recovery: on InternalBufferOverflowException (the dominant
+            // FileSystemWatcher failure mode), recreate the watcher up
+            // to MaxErrorRetries times within ErrorRetryCooldownSeconds.
+            // Outside that window, reset the counter. Past the cap, leave
+            // the watcher down -- a domain reload restarts everything.
+            if (state == null) return;
+            var nowUtc = DateTime.UtcNow;
+            if ((nowUtc - state.FirstErrorAtUtc).TotalSeconds > ErrorRetryCooldownSeconds) {
+                state.ErrorRetryCount = 0;
+                state.FirstErrorAtUtc = nowUtc;
+            }
+            if (state.ErrorRetryCount >= MaxErrorRetries) {
+                LogError($"[Watcher:{label}] Hit retry cap ({MaxErrorRetries} restarts in {ErrorRetryCooldownSeconds:N0}s); leaving watcher down until next domain reload.");
+                return;
+            }
+            state.ErrorRetryCount++;
+
+            try { offender.EnableRaisingEvents = false; offender.Dispose(); } catch { /* ignore */ }
+            _watchers.Remove(offender);
+            _watcherState.Remove(offender);
+            System.Threading.Thread.Sleep(1000);
+            LogWarn($"[Watcher:{label}] Restarting (attempt {state.ErrorRetryCount}/{MaxErrorRetries})...");
+            StartWatcher(root, label);
         }
 
         // ----- change detection ------------------------------------------
 
         private static void OnChange(object s, FileSystemEventArgs e) {
             if (ShouldIgnore(e.FullPath)) return;
+            if (!IsTrackedExtension(e.FullPath)) return;
             _pendingRefresh = true;
             _refreshDueAt = EditorApplication.timeSinceStartup + DebounceSeconds;
+            RecordEvent(e.ChangeType.ToString(), e.FullPath);
             LogDebug($"[Watcher] {e.ChangeType} {TrimPath(e.FullPath)}");
         }
 
         private static void OnRename(object s, RenamedEventArgs e) {
             if (ShouldIgnore(e.FullPath) && ShouldIgnore(e.OldFullPath)) return;
+            if (!IsTrackedExtension(e.FullPath) && !IsTrackedExtension(e.OldFullPath)) return;
             _pendingRefresh = true;
             _refreshDueAt = EditorApplication.timeSinceStartup + DebounceSeconds;
+            RecordEvent("Renamed", e.FullPath);
             LogDebug($"[Watcher] Renamed {TrimPath(e.OldFullPath)} -> {TrimPath(e.FullPath)}");
         }
 
@@ -162,6 +250,20 @@ namespace UmeVrcfQol.Internal.HotReload {
             if (name.EndsWith(".TMP", StringComparison.OrdinalIgnoreCase)) return true;
             if (name.StartsWith("~", StringComparison.Ordinal)) return true;
             return false;
+        }
+
+        private static bool IsTrackedExtension(string path) {
+            if (string.IsNullOrEmpty(path)) return false;
+            return path.EndsWith(".cs",     StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".asmdef", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".asmref", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void RecordEvent(string kind, string path) {
+            lock (_recentEvents) {
+                _recentEvents.Add(new RecentEvent { When = DateTime.Now, Kind = kind, Path = path });
+                while (_recentEvents.Count > RecentEventBuffer) _recentEvents.RemoveAt(0);
+            }
         }
 
         private static void Tick() {
@@ -194,6 +296,9 @@ namespace UmeVrcfQol.Internal.HotReload {
                 }
             }
             var asmName = Path.GetFileName(asmPath ?? "(unknown)");
+            LastCompileResult = errors > 0
+                ? $"{asmName}: {errors} errors, {warnings} warnings"
+                : $"{asmName}: ok ({warnings} warnings)";
             if (errors > 0) {
                 LogWarn($"[Asm] {asmName} errors={errors} warnings={warnings}");
             } else {
