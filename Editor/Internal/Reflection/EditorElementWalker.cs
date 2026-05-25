@@ -15,6 +15,7 @@ using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using UmeVrcfQol.Internal.Styling;
 
 namespace UmeVrcfQol.Internal.Reflection {
 
@@ -96,12 +97,17 @@ namespace UmeVrcfQol.Internal.Reflection {
         // --- Banner / inline-button styling ----------------------------------
 
         /// <summary>
-        /// Shared chrome for an inspector banner: dark-grey one-line row with
-        /// a thin colored left edge. Caller sets the left-edge color via
-        /// <see cref="VisualElement.style"/>.borderLeftColor afterwards.
+        /// Shared chrome for an inspector banner: themed one-line row with
+        /// a thin colored left edge. Reads <see cref="WkStyles.Current"/>
+        /// at apply time so callers inside a <see cref="WkStyles.Scope"/>
+        /// get the active theme's background + divider; pass an explicit
+        /// <paramref name="theme"/> to override. Caller sets the left-edge
+        /// color via <see cref="VisualElement.style"/>.borderLeftColor
+        /// afterwards (semantic accent is caller-supplied).
         /// </summary>
-        public static void ApplyBannerChromeStyle(VisualElement banner) {
+        public static void ApplyBannerChromeStyle(VisualElement banner, WkTheme theme = null) {
             if (banner == null) return;
+            var v = theme != null ? theme.Current : WkStyles.Current;
             banner.style.flexDirection = FlexDirection.Row;
             banner.style.alignItems = Align.Center;
             banner.style.paddingLeft = 6;
@@ -110,10 +116,10 @@ namespace UmeVrcfQol.Internal.Reflection {
             banner.style.paddingBottom = 2;
             banner.style.marginTop = 0;
             banner.style.marginBottom = 1;
-            banner.style.backgroundColor = new StyleColor(new Color(0.20f, 0.20f, 0.20f, 1f));
+            banner.style.backgroundColor = new StyleColor(v.Background);
             banner.style.borderLeftWidth = 3;
             banner.style.borderBottomWidth = 1;
-            banner.style.borderBottomColor = new StyleColor(new Color(0, 0, 0, 0.35f));
+            banner.style.borderBottomColor = new StyleColor(v.Divider);
         }
 
         /// <summary>
@@ -134,14 +140,17 @@ namespace UmeVrcfQol.Internal.Reflection {
         }
 
         /// <summary>
-        /// Toggle a button between neutral and "danger" styling (deep red
-        /// background, white bold text). Used to signal destructive states
-        /// like "Stop Previewing".
+        /// Toggle a button between neutral and "danger" styling (themed
+        /// red background, white bold text). Used to signal destructive
+        /// states like "Stop Previewing". Reads <see cref="WkStyles.Current"/>
+        /// at apply time; pass an explicit <paramref name="theme"/> to
+        /// override.
         /// </summary>
-        public static void ApplyDangerButtonStyle(Button btn, bool danger) {
+        public static void ApplyDangerButtonStyle(Button btn, bool danger, WkTheme theme = null) {
             if (btn == null) return;
             if (danger) {
-                btn.style.backgroundColor = new StyleColor(new Color(0.64f, 0.10f, 0.10f, 1f));
+                var v = theme != null ? theme.Current : WkStyles.Current;
+                btn.style.backgroundColor = new StyleColor(v.Danger);
                 btn.style.color = new StyleColor(Color.white);
                 btn.style.unityFontStyleAndWeight = FontStyle.Bold;
                 return;

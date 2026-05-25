@@ -26,6 +26,7 @@
 // EditorHotReload.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -140,12 +141,111 @@ namespace UmeVrcfQol.Internal.Logging {
             Write(WkLogLevel.Error, headline, member, file, line);
             WriteLineToFile(ex.StackTrace ?? "(no stack trace)");
             WriteLineToFile("");  // blank line separator after stack
-            if (MirrorExceptionToConsole) UnityEngine.Debug.LogException(ex);
+            if (MirrorExceptionToConsole) {
+                var contextObject = WkLogContext.CurrentContextObject;
+                if (contextObject != null) UnityEngine.Debug.LogException(ex, contextObject);
+                else                       UnityEngine.Debug.LogException(ex);
+            }
         }
 
         /// <summary>Write a raw line to the log file with no level/prefix. Useful for headers and separators.</summary>
         public void Raw(string line) {
             WriteLineToFile(line);
+        }
+
+        // ---- scoped operations --------------------------------------
+
+        /// <summary>
+        /// Push a <see cref="WkLogContext.Scope"/> labelled
+        /// <paramref name="label"/>, write a "<label> starting" line at
+        /// Debug level, and on dispose write a "<label> finished in Xms"
+        /// line at <paramref name="completionLevel"/>. Usage:
+        ///   using (logger.BeginTask("BoneMerger scan")) { ... }
+        /// </summary>
+        public IDisposable BeginTask(string label, WkLogLevel completionLevel = WkLogLevel.Info) {
+            return new TaskScope(this, label, completionLevel);
+        }
+
+        /// <summary>
+        /// Write a multi-line block to the file with each subsequent line
+        /// indented by two spaces. Same level mirror behaviour as a single
+        /// <see cref="Info"/> call but the indented lines stay file-only
+        /// to avoid spamming the Unity Console.
+        /// </summary>
+        public void InfoBlock(string header, IEnumerable<string> lines,
+                              [CallerMemberName] string member = "",
+                              [CallerFilePath]   string file = "",
+                              [CallerLineNumber] int    line = 0)
+            => WriteBlock(WkLogLevel.Info, header, lines, member, file, line);
+
+        public void WarningBlock(string header, IEnumerable<string> lines,
+                                 [CallerMemberName] string member = "",
+                                 [CallerFilePath]   string file = "",
+                                 [CallerLineNumber] int    line = 0)
+            => WriteBlock(WkLogLevel.Warning, header, lines, member, file, line);
+
+        public void ErrorBlock(string header, IEnumerable<string> lines,
+                               [CallerMemberName] string member = "",
+                               [CallerFilePath]   string file = "",
+                               [CallerLineNumber] int    line = 0)
+            => WriteBlock(WkLogLevel.Error, header, lines, member, file, line);
+
+        private void WriteBlock(WkLogLevel level, string header, IEnumerable<string> lines,
+                                string member, string file, int lineNumber) {
+            Write(level, header ?? "", member, file, lineNumber);
+            if (lines == null) return;
+            foreach (var lineText in lines) {
+                if (lineText == null) continue;
+                // Indent the continuation lines for readability; the prefix
+                // and timestamps stay so a grep on the level tag still
+                // catches them. Continuation lines do not mirror to the
+                // console -- the header already did.
+                WriteContinuationLine(level, "  " + lineText);
+            }
+        }
+
+        private void WriteContinuationLine(WkLogLevel level, string message) {
+            string formatted;
+            lock (_builder) {
+                _builder.Clear();
+                _builder.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                _builder.Append(" [").Append(LevelTag(level)).Append(']');
+                _builder.Append(' ').Append(message);
+                formatted = _builder.ToString();
+            }
+            WriteLineToFile(formatted);
+        }
+
+        private sealed class TaskScope : IDisposable {
+            private readonly WkLogger _logger;
+            private readonly string _label;
+            private readonly WkLogLevel _completionLevel;
+            private readonly IDisposable _scope;
+            private readonly double _startTimeRealtime;
+            private bool _disposed;
+
+            public TaskScope(WkLogger logger, string label, WkLogLevel completionLevel) {
+                _logger = logger;
+                _label = label ?? "task";
+                _completionLevel = completionLevel;
+                _scope = WkLogContext.Scope(_label);
+                _startTimeRealtime = Time.realtimeSinceStartupAsDouble;
+                _logger.Debug($"{_label} starting");
+            }
+
+            public void Dispose() {
+                if (_disposed) return;
+                _disposed = true;
+                var elapsedMs = (Time.realtimeSinceStartupAsDouble - _startTimeRealtime) * 1000.0;
+                var msg = $"{_label} finished in {elapsedMs:F1} ms";
+                switch (_completionLevel) {
+                    case WkLogLevel.Debug:   _logger.Debug(msg);   break;
+                    case WkLogLevel.Warning: _logger.Warning(msg); break;
+                    case WkLogLevel.Error:   _logger.Error(msg);   break;
+                    default:                 _logger.Info(msg);    break;
+                }
+                _scope.Dispose();
+            }
         }
 
         // ---- formatting ---------------------------------------------
@@ -154,13 +254,14 @@ namespace UmeVrcfQol.Internal.Logging {
             string fileName = string.IsNullOrEmpty(file) ? null : Path.GetFileName(file);
             string source = (fileName != null && lineNumber > 0) ? $" {fileName}:{lineNumber}" : "";
             string memberTag = string.IsNullOrEmpty(member) ? "" : $" ({member})";
+            string scopePrefix = WkLogContext.FormatScopePrefix();
             string formatted;
             lock (_builder) {
                 _builder.Clear();
                 _builder.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                 _builder.Append(" [").Append(LevelTag(level)).Append(']');
                 _builder.Append(source).Append(memberTag);
-                _builder.Append(' ').Append(message);
+                _builder.Append(' ').Append(scopePrefix).Append(message);
                 formatted = _builder.ToString();
             }
             WriteLineToFile(formatted);
@@ -179,18 +280,31 @@ namespace UmeVrcfQol.Internal.Logging {
 
         private void MirrorToConsole(WkLogLevel level, string message) {
             var prefixed = $"[{_displayName}] {message}";
+            // Attach the current context object to the console mirror so
+            // clicking the line in the Console pings the object in the
+            // Hierarchy. Console mirror omits the file-line scope prefix
+            // -- the prefix is for grep, not Unity's UI.
+            var contextObject = WkLogContext.CurrentContextObject;
             switch (level) {
                 case WkLogLevel.Debug:
-                    if (MirrorDebugToConsole) UnityEngine.Debug.Log(prefixed);
+                    if (!MirrorDebugToConsole) break;
+                    if (contextObject != null) UnityEngine.Debug.Log(prefixed, contextObject);
+                    else                       UnityEngine.Debug.Log(prefixed);
                     break;
                 case WkLogLevel.Info:
-                    if (MirrorInfoToConsole) UnityEngine.Debug.Log(prefixed);
+                    if (!MirrorInfoToConsole) break;
+                    if (contextObject != null) UnityEngine.Debug.Log(prefixed, contextObject);
+                    else                       UnityEngine.Debug.Log(prefixed);
                     break;
                 case WkLogLevel.Warning:
-                    if (MirrorWarningToConsole) UnityEngine.Debug.LogWarning(prefixed);
+                    if (!MirrorWarningToConsole) break;
+                    if (contextObject != null) UnityEngine.Debug.LogWarning(prefixed, contextObject);
+                    else                       UnityEngine.Debug.LogWarning(prefixed);
                     break;
                 case WkLogLevel.Error:
-                    if (MirrorErrorToConsole) UnityEngine.Debug.LogError(prefixed);
+                    if (!MirrorErrorToConsole) break;
+                    if (contextObject != null) UnityEngine.Debug.LogError(prefixed, contextObject);
+                    else                       UnityEngine.Debug.LogError(prefixed);
                     break;
             }
         }

@@ -28,7 +28,7 @@ using UnityEngine;
 
 namespace UmeVrcfQol.Internal.Styling {
 
-    public enum NoticeKind { Info, Warning, Success }
+    public enum NoticeKind { Info, Warning, Success, Danger }
 
     public static class WkStyles {
 
@@ -89,16 +89,21 @@ namespace UmeVrcfQol.Internal.Styling {
         public static Color ColorDanger  => Current.Danger;
 
         /// <summary>Hairline divider tint with alpha baked in.</summary>
-        public static Color ColorDivider => Current.Divider;
+        public static Color ColorDivider       => Current.Divider;
+
+        /// <summary>Lower-contrast divider for dense row lists.</summary>
+        public static Color ColorDividerSubtle => Current.DividerSubtle;
 
         /// <summary>Surface color for banners and panels.</summary>
-        public static Color ColorBackground    => Current.Background;
-        public static Color ColorBackgroundAlt => Current.BackgroundAlt;
+        public static Color ColorBackground         => Current.Background;
+        public static Color ColorBackgroundAlt      => Current.BackgroundAlt;
+        public static Color ColorBackgroundEmphasis => Current.BackgroundEmphasis;
 
         /// <summary>Default label color.</summary>
         public static Color ColorTextPrimary => Current.TextPrimary;
         public static Color ColorTextMuted   => Current.TextMuted;
         public static Color ColorBorder      => Current.Border;
+        public static Color ColorButtonHover => Current.ButtonHover;
 
         // ---- Typography ---------------------------------------------------
         // Each style is built from a baseline EditorStyles entry to inherit
@@ -114,6 +119,10 @@ namespace UmeVrcfQol.Internal.Styling {
         private static GUIStyle _badgePillStyle;
         private static GUIStyle _cardSelected;
         private static GUIStyle _foldoutHeader;
+        private static GUIStyle _caption;
+        private static GUIStyle _code;
+        private static GUIStyle _titleBar;
+        private static GUIStyle _rowAlt;
 
         public static GUIStyle SectionTitle =>
             _sectionTitle ??= new GUIStyle(EditorStyles.boldLabel) {
@@ -178,6 +187,33 @@ namespace UmeVrcfQol.Internal.Styling {
                 fontStyle = FontStyle.Bold,
             };
 
+        /// <summary>Italic muted caption text -- "Last updated:" annotations.</summary>
+        public static GUIStyle Caption =>
+            _caption ??= new GUIStyle(EditorStyles.miniLabel) {
+                fontSize = 10,
+                fontStyle = FontStyle.Italic,
+                wordWrap = true,
+            };
+
+        /// <summary>Inline code block: monospace, no wrap, plain text (no rich-text markup honoured).</summary>
+        public static GUIStyle Code =>
+            _code ??= BuildCode();
+
+        /// <summary>Section-title font with right-edge padding reserved for the inline help icon.</summary>
+        public static GUIStyle TitleBarStyle =>
+            _titleBar ??= new GUIStyle(EditorStyles.boldLabel) {
+                fontSize = 14,
+                margin = new RectOffset(0, 0, 4, 2),
+                padding = new RectOffset(0, 26, 0, 0),
+            };
+
+        /// <summary>Striped-row background for dense list views.</summary>
+        public static GUIStyle RowAlt =>
+            _rowAlt ??= new GUIStyle(EditorStyles.label) {
+                padding = new RectOffset(4, 4, 2, 2),
+                margin = new RectOffset(0, 0, 0, 0),
+            };
+
         private static GUIStyle BuildMono() {
             // Consolas exists on Windows; Menlo on Mac; Courier New everywhere.
             // CreateDynamicFontFromOSFont returns null when the font isn't
@@ -189,6 +225,13 @@ namespace UmeVrcfQol.Internal.Styling {
             }
             var s = new GUIStyle(EditorStyles.label) { fontSize = 10 };
             if (font != null) s.font = font;
+            return s;
+        }
+
+        private static GUIStyle BuildCode() {
+            var s = BuildMono();
+            s.wordWrap = false;
+            s.richText = false;
             return s;
         }
 
@@ -217,6 +260,16 @@ namespace UmeVrcfQol.Internal.Styling {
             public void Dispose() { EditorGUILayout.EndVertical(); }
         }
 
+        /// <summary>Resolve a semantic <see cref="NoticeKind"/> to the active theme color.</summary>
+        public static Color ColorForKind(NoticeKind kind) {
+            switch (kind) {
+                case NoticeKind.Warning: return ColorWarning;
+                case NoticeKind.Success: return ColorSuccess;
+                case NoticeKind.Danger:  return ColorDanger;
+                default:                 return ColorInfo;
+            }
+        }
+
         /// <summary>
         /// Coloured pill -- small rounded label for category tags. The pill
         /// claims width to fit `text`. Tooltip is honoured via GUIContent.
@@ -238,6 +291,17 @@ namespace UmeVrcfQol.Internal.Styling {
         public static void Divider(float thickness = 1f) {
             var rect = EditorGUILayout.GetControlRect(false, thickness);
             EditorGUI.DrawRect(rect, ColorDivider);
+        }
+
+        /// <summary>Lower-contrast divider for dense row lists; reads ColorDividerSubtle.</summary>
+        public static void SubtleDivider(float thickness = 1f) {
+            var rect = EditorGUILayout.GetControlRect(false, thickness);
+            EditorGUI.DrawRect(rect, ColorDividerSubtle);
+        }
+
+        /// <summary>NoticeKind-shaped <see cref="BadgePill"/> overload that routes through the theme.</summary>
+        public static void BadgePill(string text, NoticeKind kind, string tooltip = null) {
+            BadgePill(text, ColorForKind(kind), tooltip);
         }
 
         /// <summary>
@@ -269,12 +333,7 @@ namespace UmeVrcfQol.Internal.Styling {
                                   string actionLabel = null,
                                   string actionTooltip = null,
                                   GUILayoutOption[] actionOptions = null) {
-            Color bg;
-            switch (kind) {
-                case NoticeKind.Warning: bg = ColorWarning; break;
-                case NoticeKind.Success: bg = ColorSuccess; break;
-                default:                 bg = ColorInfo;    break;
-            }
+            Color bg = ColorForKind(kind);
             // Soft tint as a background; the helpBox border still sells it as a panel.
             var prev = GUI.backgroundColor;
             GUI.backgroundColor = new Color(bg.r, bg.g, bg.b, 0.35f);
@@ -316,6 +375,176 @@ namespace UmeVrcfQol.Internal.Styling {
                 $"{what} printed to the Unity console.",
                 "Open Console",
                 "Open the Console window so you can read the output.");
+        }
+
+        // ---- Extended primitives ------------------------------------------
+
+        /// <summary>Destructive-action button, red background + white bold text. Returns true on click.</summary>
+        public static bool DangerButtonInline(GUIContent content, params GUILayoutOption[] options) {
+            var prevBg = GUI.backgroundColor;
+            var prevFg = GUI.contentColor;
+            GUI.backgroundColor = ColorDanger;
+            GUI.contentColor = Color.white;
+            bool clicked = GUILayout.Button(content, PrimaryButton, options);
+            GUI.backgroundColor = prevBg;
+            GUI.contentColor = prevFg;
+            return clicked;
+        }
+
+        /// <summary>Neutral footer-row companion to <see cref="PrimaryButtonInline"/>.</summary>
+        public static bool SecondaryButtonInline(GUIContent content, params GUILayoutOption[] options) {
+            return GUILayout.Button(content, PrimaryButton, options);
+        }
+
+        /// <summary>
+        /// Bold foldout header. Returns the new expanded state -- caller
+        /// stores it themselves and gates the body with `if (expanded) { ... }`.
+        /// Matches <see cref="EditorGUILayout.Foldout(bool, string)"/>'s shape
+        /// but routes through <see cref="FoldoutHeader"/> styling.
+        /// </summary>
+        public static bool FoldoutHeaderRow(string label, bool expanded, string tooltip = null) {
+            var content = new GUIContent(label, tooltip ?? "");
+            return EditorGUILayout.Foldout(expanded, content, true, FoldoutHeader);
+        }
+
+        /// <summary>
+        /// Two-column horizontal layout: <paramref name="drawLeft"/> claims
+        /// <paramref name="leftWidth"/> pixels on the left, <paramref name="drawRight"/>
+        /// fills the remainder.
+        /// </summary>
+        public static void TwoColumn(float leftWidth, Action drawLeft, Action drawRight) {
+            using (new EditorGUILayout.HorizontalScope()) {
+                using (new EditorGUILayout.VerticalScope(GUILayout.Width(leftWidth))) {
+                    drawLeft?.Invoke();
+                }
+                using (new EditorGUILayout.VerticalScope()) {
+                    drawRight?.Invoke();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Editor search field. Returns true when <paramref name="query"/>
+        /// changed this frame so the caller can re-filter. Stack-allocated
+        /// SearchField backing is cached internally; first call after a
+        /// domain reload reconstructs it.
+        /// </summary>
+        public static bool SearchField(ref string query, string placeholder = "Search", float width = 0) {
+            _searchField ??= new UnityEditor.IMGUI.Controls.SearchField();
+            var prev = query ?? "";
+            var opts = width > 0 ? new[] { GUILayout.Width(width) } : new GUILayoutOption[0];
+            var rect = EditorGUILayout.GetControlRect(false, 18, opts);
+            var next = _searchField.OnGUI(rect, prev);
+            query = next;
+            return next != prev;
+        }
+
+        private static UnityEditor.IMGUI.Controls.SearchField _searchField;
+
+        /// <summary>
+        /// Tab bar. Renders <paramref name="tabs"/> as a horizontal toolbar
+        /// and returns the newly-selected index. Caller stores the index;
+        /// gate body content on it.
+        /// </summary>
+        public static int TabBar(int selected, params GUIContent[] tabs) {
+            if (tabs == null || tabs.Length == 0) return selected;
+            return GUILayout.Toolbar(Mathf.Clamp(selected, 0, tabs.Length - 1), tabs, EditorStyles.toolbarButton);
+        }
+
+        /// <summary>
+        /// Themed progress bar. <paramref name="t01"/> clamps to [0, 1].
+        /// </summary>
+        public static void ProgressBar(float t01, string label = null, float height = 12f) {
+            var rect = EditorGUILayout.GetControlRect(false, height);
+            EditorGUI.DrawRect(rect, ColorBackgroundAlt);
+            var filled = new Rect(rect.x, rect.y, rect.width * Mathf.Clamp01(t01), rect.height);
+            EditorGUI.DrawRect(filled, ColorAccent);
+            if (!string.IsNullOrEmpty(label)) {
+                var prev = GUI.contentColor;
+                GUI.contentColor = ColorTextPrimary;
+                GUI.Label(rect, label, EditorStyles.miniLabel);
+                GUI.contentColor = prev;
+            }
+        }
+
+        /// <summary>Labeled <see cref="EditorGUILayout.ObjectField"/> row with theme-routed label width.</summary>
+        public static T ObjectFieldRow<T>(GUIContent label, T value, bool allowSceneObjects = true) where T : UnityEngine.Object {
+            T next = value;
+            using (new EditorGUILayout.HorizontalScope()) {
+                EditorGUILayout.LabelField(label, GUILayout.Width(LabelColumn));
+                next = (T) EditorGUILayout.ObjectField(value, typeof(T), allowSceneObjects);
+            }
+            return next;
+        }
+
+        /// <summary>
+        /// Full-width tinted strip with a centred bold label. Used for
+        /// "last build: ok / failed" sticky status bars.
+        /// </summary>
+        public static void StatusBanner(string text, Color tint, GUIContent icon = null, float height = 22) {
+            var rect = EditorGUILayout.GetControlRect(false, height, GUILayout.ExpandWidth(true));
+            EditorGUI.DrawRect(rect, tint);
+            var prev = GUI.contentColor;
+            GUI.contentColor = Color.white;
+            var labelStyle = new GUIStyle(EditorStyles.boldLabel) {
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = Color.white },
+            };
+            GUI.Label(rect, icon != null ? new GUIContent(text, icon.image) : new GUIContent(text), labelStyle);
+            GUI.contentColor = prev;
+        }
+
+        /// <summary>NoticeKind-shaped <see cref="StatusBanner"/> overload that routes through the theme.</summary>
+        public static void StatusBanner(string text, NoticeKind kind, GUIContent icon = null, float height = 22) {
+            StatusBanner(text, ColorForKind(kind), icon, height);
+        }
+
+        /// <summary>
+        /// Tile a checker pattern across <paramref name="rect"/>. Used as
+        /// the transparency-aware background for preview thumbnails.
+        /// </summary>
+        public static void Checker(Rect rect, int squareSize = 8) {
+            if (squareSize < 1) squareSize = 1;
+            var c1 = new Color(0.35f, 0.35f, 0.35f, 1f);
+            var c2 = new Color(0.25f, 0.25f, 0.25f, 1f);
+            int cols = Mathf.CeilToInt(rect.width / squareSize);
+            int rows = Mathf.CeilToInt(rect.height / squareSize);
+            for (int y = 0; y < rows; y++) {
+                for (int x = 0; x < cols; x++) {
+                    var r = new Rect(
+                        rect.x + x * squareSize,
+                        rect.y + y * squareSize,
+                        Mathf.Min(squareSize, rect.xMax - (rect.x + x * squareSize)),
+                        Mathf.Min(squareSize, rect.yMax - (rect.y + y * squareSize)));
+                    EditorGUI.DrawRect(r, ((x + y) & 1) == 0 ? c1 : c2);
+                }
+            }
+        }
+
+        /// <summary>Draw a four-slab border around <paramref name="rect"/> in the given <paramref name="color"/>.</summary>
+        public static void RectBorder(Rect rect, Color color, float thickness = 1f) {
+            EditorGUI.DrawRect(new Rect(rect.x,                       rect.y,                        rect.width, thickness), color);
+            EditorGUI.DrawRect(new Rect(rect.x,                       rect.yMax - thickness,         rect.width, thickness), color);
+            EditorGUI.DrawRect(new Rect(rect.x,                       rect.y,                        thickness,  rect.height), color);
+            EditorGUI.DrawRect(new Rect(rect.xMax - thickness,        rect.y,                        thickness,  rect.height), color);
+        }
+
+        /// <summary>
+        /// Window title row -- big bold label on the left, optional help
+        /// icon on the right. Absorbs the per-window <c>DrawTitleBar()</c>
+        /// pattern that every WkToolWindow subclass would otherwise inline.
+        /// </summary>
+        public static void TitleBar(string title, string helpUrl = null) {
+            using (new EditorGUILayout.HorizontalScope()) {
+                EditorGUILayout.LabelField(title, SectionTitle);
+                if (!string.IsNullOrEmpty(helpUrl)) {
+                    GUILayout.FlexibleSpace();
+                    if (GUILayout.Button(new GUIContent("?", "Open the documentation for this tool."),
+                            EditorStyles.miniButton, GUILayout.Width(22), GUILayout.Height(18))) {
+                        Application.OpenURL(helpUrl);
+                    }
+                }
+            }
         }
     }
 }
