@@ -9,12 +9,17 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.1.0](https://github.com/RealWhyKnot/vrcfury-qol/releases/tag/v1.1.0) -- 2026-05-25
+
 ### Added
 - **inspector:** Per-toggle Preview banner, inline action tools, multi-toggle action resolver (24e3922)
 - **logging:** Every diagnostic line in this package now routes through `VrcfQolLogger.Instance` (the package's registered `WkLogger`). Sessions are written to `%LocalAppData%/WhyKnot/Logs/dev.whyknot.vrcfury-qol/session-<timestamp>.log`, capped at 3 retained sessions per package. Each line carries a level tag, source file:line, calling method, and message. Info, Warning, and Error mirror to the Unity Console as before; Debug stays file-only. The session file is project-independent so a bug report can point at the same path regardless of which Unity project surfaced it.
 - **theming:** Tool window OnGUI bodies (`ReplaceReferencesWindow`, `MissingReferenceWindow`, `MoveVrcfComponentsTool`) open `using (WkStyles.Scope(WkTheme.VRCFury))` so the palette emitted by `WkStyles` matches VRCFury's dark-gray row chrome and warm accents. The inspector overlay (UIElements) already painted these colors via its hardcoded chrome helpers; the IMGUI tool windows now match.
 - **toggle:** Auto-rename globalParam on menu-path collision (1fee7c2)
-- Bundle wk-core source, drop dev.whyknot.core dependency (1.2.0) (93951f2)
 
 ### Changed
 - **deps:** Bumped `dev.whyknot.core` dependency to `>=1.1.0` so the new theming system and `WkLogger` are guaranteed available.
