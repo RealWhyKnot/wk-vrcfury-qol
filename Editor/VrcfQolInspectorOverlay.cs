@@ -140,19 +140,27 @@ namespace UmeVrcfQol {
                 return;
             }
 
-            var anchored = new HashSet<Component>();
+            // Track the canonical banner per Toggle Component. The cleanup
+            // pass below removes any other banner that points at the same
+            // Component -- a stale banner stranded above the EditorElement
+            // header after an inspector rebuild won't be visible to
+            // BuildBannerInside's host-scoped Q<>, so it survives unless we
+            // explicitly drop everything that isn't the canonical one.
+            var anchored = new Dictionary<Component, VisualElement>();
             foreach (var wrapper in EditorElementWalker.EnumerateEditorWrappers(root)) {
                 if (wrapper.GetType().Name != "EditorElement") continue;
                 if (!EditorElementWalker.TryGetEditorTarget(wrapper, out var comp)) continue;
                 if (!togglesOnSelection.Contains(comp)) continue;
-                if (anchored.Contains(comp)) continue;
-                BuildBannerInside(wrapper, comp);
-                anchored.Add(comp);
+                if (anchored.ContainsKey(comp)) continue;
+                var banner = BuildBannerInside(wrapper, comp);
+                if (banner != null) anchored[comp] = banner;
             }
 
             foreach (var banner in root.Query<VisualElement>(className: ToggleBannerClass).ToList()) {
                 var owner = banner.userData as Component;
-                if (owner == null || !anchored.Contains(owner)) {
+                if (owner == null
+                        || !anchored.TryGetValue(owner, out var canonical)
+                        || !ReferenceEquals(banner, canonical)) {
                     banner.RemoveFromHierarchy();
                 }
             }
@@ -164,11 +172,14 @@ namespace UmeVrcfQol {
             }
         }
 
-        private static void BuildBannerInside(VisualElement editorElement, Component target) {
+        private static VisualElement BuildBannerInside(VisualElement editorElement, Component target) {
             // Anchor the banner inside the InspectorElement (the editor's
             // content host) so it sits BELOW the component header rather
             // than above it, integrating with the VRCFury inspector body.
+            // Returns the canonical banner so the caller can mark it as the
+            // one to keep during the duplicate-cleanup pass.
             var host = EditorElementWalker.FindInspectorContent(editorElement);
+            if (host == null) return null;
             var banner = host.Q<VisualElement>(className: ToggleBannerClass);
             if (banner == null || !ReferenceEquals(banner.parent, host)) {
                 if (banner != null) banner.RemoveFromHierarchy();
@@ -179,6 +190,7 @@ namespace UmeVrcfQol {
             }
             banner.userData = target;
             PopulateBanner(banner, target);
+            return banner;
         }
 
 

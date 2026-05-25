@@ -1,0 +1,49 @@
+name: Version guard
+
+# Fails the build if anyone reintroduces a hardcoded `const string Version`
+# in Editor/ or Runtime/ source. The package version must come from
+# package.json via UnityEditor.PackageManager.PackageInfo.FindForAssembly --
+# see Editor/VrcfQolLogger.cs for the pattern.
+#
+# The drift footgun this prevents: package.json bumped on release but the
+# constant left behind (or vice versa) -- the published binary then reports
+# the wrong version in its session-log header, making bug reports point at
+# the wrong release.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  no-hardcoded-versions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Scan for hardcoded Version constants
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Match `const string Version = "..."` (any whitespace) in .cs files
+          # under Editor/ or Runtime/. grep -P would be tidier but ripgrep
+          # isn't on ubuntu-latest by default; stick with portable BRE/ERE.
+          dirs=()
+          [ -d Editor ]  && dirs+=(Editor)
+          [ -d Runtime ] && dirs+=(Runtime)
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "No Editor/ or Runtime/ directory in this repo -- skipping."
+            exit 0
+          fi
+          matches=$(grep -RnE 'const[[:space:]]+string[[:space:]]+Version[[:space:]]*=' --include='*.cs' "${dirs[@]}" || true)
+          if [ -n "$matches" ]; then
+            echo "::error::Hardcoded version constants detected. Use PackageInfo.FindForAssembly() instead -- see Editor/*Logger.cs for the pattern."
+            echo "$matches"
+            exit 1
+          fi
+          echo "No hardcoded version constants found."
