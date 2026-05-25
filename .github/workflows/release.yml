@@ -2,15 +2,23 @@ name: Release
 
 # Cuts a VPM-installable release on tag push (v*).
 #   1. Validates package.json (name, version-matches-tag)
-#   2. Stages a clean copy of the package contents
-#   3. Rewrites the staged package.json's `url` field to the predicted
+#   2. Promotes the "## Unreleased" CHANGELOG section to the versioned
+#      heading via Update-Changelog.ps1 -Mode Promote. The promoted bytes
+#      end up in the published zip AND get pushed back to main at the end.
+#   3. Stages a clean copy of the package contents
+#   4. Rewrites the staged package.json's `url` field to the predicted
 #      release-asset URL (so the manifest inside the zip matches what
 #      VCC fetches)
-#   4. Builds <name>-<version>.zip
-#   5. Creates a GitHub Release with both the zip and the rewritten
+#   5. Builds <name>-<version>.zip
+#   6. Extracts the released section as the GitHub release body via
+#      Update-Changelog.ps1 -Mode Notes -ForVersion
+#   7. Creates a GitHub Release with both the zip and the rewritten
 #      package.json as separate assets (the listing builder fetches the
 #      bare package.json by name to avoid unzipping)
-#   6. Pings the listing repo (RealWhyKnot/whyknot-vpm) to rebuild
+#   8. Pushes the promoted CHANGELOG.md + wiki/Changelog.md back to main
+#      via the GraphQL createCommitOnBranch mutation (so the commit is
+#      signed server-side and clears the protected-branch rule)
+#   9. Pings the listing repo (RealWhyKnot/whyknot-vpm) to rebuild
 #      vpm.whyknot.dev/index.json so the new version shows up immediately
 #
 # The listing-rebuild ping is best-effort: it requires a PAT secret named
@@ -29,6 +37,13 @@ on:
 
 permissions:
   contents: write
+
+# Serialise with changelog-append so the appender can't race the promotion
+# step (which would re-bullet entries that the release has already moved
+# into the versioned section).
+concurrency:
+  group: changelog-append
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -64,6 +79,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
 
       - name: Validate package.json
         id: pkg
@@ -86,6 +102,32 @@ jobs:
           fi
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "Package $name @ $pkg_version OK"
+
+      - name: Promote Unreleased -> tagged section
+        # Rewrites CHANGELOG.md (and wiki/Changelog.md) so "## Unreleased"
+        # becomes "## [vTAG](release-url) -- DATE" and a fresh empty
+        # Unreleased heading is inserted above. The promoted bytes are what
+        # get shipped in the zip AND pushed back to main at the end. If
+        # this step changes nothing (e.g. tag points at a commit with an
+        # already-promoted CHANGELOG), the rest of the workflow still runs.
+        shell: pwsh
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          ./.github/scripts/Update-Changelog.ps1 -Mode Promote -Version '${{ steps.tag.outputs.tag }}'
+
+      - name: Extract release notes from promoted section
+        id: notes
+        shell: pwsh
+        run: |
+          $notes = & ./.github/scripts/Update-Changelog.ps1 `
+            -Mode Notes -ForVersion `
+            -Version '${{ steps.tag.outputs.tag }}'
+          if (-not $notes) { $notes = '_Maintenance release; see commit log for details._' }
+          $delim = "EOF_" + [Guid]::NewGuid().ToString('N')
+          "body<<$delim" >> $env:GITHUB_OUTPUT
+          $notes         >> $env:GITHUB_OUTPUT
+          $delim         >> $env:GITHUB_OUTPUT
 
       - name: Stage and rewrite package.json url
         id: stage
@@ -110,7 +152,6 @@ jobs:
             --exclude='.vs' \
             --exclude='.idea' \
             --exclude='wiki' \
-            --exclude='Tests' \
             --exclude='CONTRIBUTING.md' \
             --exclude='staging' \
             --exclude='*.zip' \
@@ -138,6 +179,35 @@ jobs:
           ls -la "$zipname" package.json.release
           unzip -l "$zipname" | head -40
 
+      - name: Compose release body file
+        id: body
+        shell: bash
+        env:
+          # Pass the changelog body through the environment so bash treats
+          # it as a literal string. Inlining ${{ steps.notes.outputs.body }}
+          # directly into the script would let backticks in the bullets
+          # trigger command substitution.
+          CHANGELOG_NOTES: ${{ steps.notes.outputs.body }}
+          ZIP_NAME: ${{ steps.stage.outputs.zipname }}
+          ZIP_URL:  ${{ steps.stage.outputs.asset_url }}
+          ZIP_SIZE: ${{ steps.stage.outputs.size }}
+          ZIP_SHA:  ${{ steps.stage.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          body_file="$(mktemp)"
+          {
+            printf '%s\n' "$CHANGELOG_NOTES"
+            echo ""
+            echo "---"
+            echo ""
+            echo "**Install via VCC:** add \`https://vpm.whyknot.dev/index.json\` to your listings."
+            echo ""
+            echo "| Asset | Size | SHA-256 |"
+            echo "|-------|------|---------|"
+            printf '| [`%s`](%s) | %s bytes | `%s` |\n' "$ZIP_NAME" "$ZIP_URL" "$ZIP_SIZE" "$ZIP_SHA"
+          } > "$body_file"
+          echo "body_file=$body_file" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -145,27 +215,103 @@ jobs:
           set -euo pipefail
           tag="${{ steps.tag.outputs.tag }}"
           zip="${{ steps.stage.outputs.zipname }}"
-          sha="${{ steps.stage.outputs.sha256 }}"
-          size="${{ steps.stage.outputs.size }}"
-          asset_url="${{ steps.stage.outputs.asset_url }}"
-          notes=$(cat <<EOF
-          VPM package release.
-
-          - Zip: \`$zip\` ($size bytes)
-          - SHA256: \`$sha\`
-          - Direct download: $asset_url
-
-          Install via VCC by adding the listing at \`https://vpm.whyknot.dev/index.json\`.
-          EOF
-          )
           # Move the package.json sidecar to its final filename right before upload.
           mv package.json.release package.json
           gh release create "$tag" \
             "$zip" "package.json" \
             --title "$tag" \
-            --notes "$notes" \
+            --notes-file "${{ steps.body.outputs.body_file }}" \
             --verify-tag \
             ${{ steps.beta.outputs.release_flags }}
+
+      - name: Push promoted CHANGELOG back to main
+        # The promoted CHANGELOG.md + wiki/Changelog.md were rewritten on the
+        # tag's checkout. Push those bytes back to main so the next push
+        # starts with the fresh "## Unreleased" stub. Uses the same
+        # createCommitOnBranch mutation pattern as changelog-append.yml so
+        # the commit is signed server-side and clears the protected-branch
+        # signature rule on main.
+        #
+        # If main has moved (concurrent push slipped past the concurrency
+        # group somehow), the expectedHeadOid guard makes the mutation
+        # fail and we surface a warning -- the release itself already
+        # succeeded; the promotion just needs a manual re-run.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TAG_NAME: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if ! git diff --quiet CHANGELOG.md wiki/Changelog.md; then
+            echo "Promotion produced changes; pushing to main."
+          else
+            echo "No changelog changes to promote -- skipping push."
+            exit 0
+          fi
+
+          # Read main's current head via API rather than local rev-parse:
+          # this workflow's working tree is on the tag commit, which may
+          # sit behind main. The concurrency group serialises against
+          # changelog-append, but read main fresh just in case.
+          expected_oid=$(gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/main" --jq '.object.sha')
+          changelog_b64=$(base64 -w 0 CHANGELOG.md)
+          wiki_b64=$(base64 -w 0 wiki/Changelog.md)
+
+          headline="docs(changelog): promote Unreleased -> ${TAG_NAME} [skip changelog]"
+          body=$(printf '%s\n%s' \
+            'Maintained by .github/workflows/release.yml.' \
+            'Mirrors the CHANGELOG that ships inside the release zip back onto main.')
+
+          payload=$(jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg headline "$headline" \
+            --arg body "$body" \
+            --arg oid "$expected_oid" \
+            --arg changelog "$changelog_b64" \
+            --arg wiki "$wiki_b64" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
+              variables: {
+                input: {
+                  branch: { repositoryNameWithOwner: $repo, branchName: "main" },
+                  message: { headline: $headline, body: $body },
+                  fileChanges: {
+                    additions: [
+                      { path: "CHANGELOG.md",      contents: $changelog },
+                      { path: "wiki/Changelog.md", contents: $wiki }
+                    ]
+                  },
+                  expectedHeadOid: $oid
+                }
+              }
+            }')
+
+          response=$(printf '%s' "$payload" | gh api graphql --input -)
+          echo "$response" | jq .
+
+          if echo "$response" | jq -e '.errors // empty' >/dev/null; then
+            echo "::warning::createCommitOnBranch returned GraphQL errors -- the release published OK, but main is still on the pre-promotion CHANGELOG. Re-run by hand: rebase main against this commit, then push."
+            exit 0
+          fi
+
+          new_oid=$(echo "$response" | jq -r '.data.createCommitOnBranch.commit.oid')
+          new_url=$(echo "$response" | jq -r '.data.createCommitOnBranch.commit.url')
+          echo "Promotion commit: $new_oid"
+          echo "URL:              $new_url"
+
+      - name: Trigger wiki sync
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # wiki/Changelog.md changed under github-actions[bot] auth, which
+          # doesn't fire push triggers -- kick wiki-sync explicitly so the
+          # GitHub Wiki picks up the new versioned section.
+          gh workflow run wiki-sync.yml --ref main 2>&1 || \
+            echo "::warning::Could not trigger wiki-sync. The next wiki/** push will pick it up."
 
       - name: Trigger VPM listing rebuild
         continue-on-error: true
