@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## Unreleased
 
-_No notable changes since the last release._
+### Changed
+- Split the four large editor files into per-concern partial classes (1ce59bd)
 
 ---
 
