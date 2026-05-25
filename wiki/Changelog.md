@@ -22,6 +22,9 @@ The most recent release is at the top.
 - **deps:** Add `dev.whyknot.core` (>=1.0.0) as a hard `vpmDependency`. VCC auto-installs the shared utility package alongside vrcfury-qol. Internal-only refactor that consolidates the hot-reload watcher, the `GetGameObjectPath` helper, and the six UIElements / banner-chrome helpers behind a single shared assembly; no user-visible behaviour change. The compile log moves from `Logs/VrcfQolHotReload.log` to `Logs/WkCore.log`.
 - Bump actions/checkout from 4 to 6 (#1) (16c696c)
 
+### Fixed
+- **overlay+ci:** De-dup Toggle banner, autoload logger version (1.1.0-beta.5) (7fd7811)
+
 ---
 
 ## [1.0.1](https://github.com/RealWhyKnot/vrcfury-qol/releases/tag/v1.0.1) -- 2026-05-07
