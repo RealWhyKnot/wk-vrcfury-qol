@@ -23,7 +23,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using WhyKnot.Core.Utilities;
+using UmeVrcfQol.Internal.Utilities;
 
 namespace UmeVrcfQol.Tools {
 

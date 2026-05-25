@@ -35,8 +35,8 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
-using WhyKnot.Core.Styling;
-using WhyKnot.Core.Utilities;
+using UmeVrcfQol.Internal.Styling;
+using UmeVrcfQol.Internal.Utilities;
 
 namespace UmeVrcfQol.Tools {
 

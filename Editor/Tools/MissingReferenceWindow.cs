@@ -13,7 +13,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
-using WhyKnot.Core.Styling;
+using UmeVrcfQol.Internal.Styling;
 
 namespace UmeVrcfQol.Tools {
 

@@ -27,7 +27,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 using UmeVrcfQol.Tools;
-using WhyKnot.Core.Reflection;
+using UmeVrcfQol.Internal.Reflection;
 
 namespace UmeVrcfQol {
 

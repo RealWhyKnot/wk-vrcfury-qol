@@ -15,7 +15,7 @@ using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
-using WhyKnot.Core.Utilities;
+using UmeVrcfQol.Internal.Utilities;
 
 namespace UmeVrcfQol.Tools {
 
