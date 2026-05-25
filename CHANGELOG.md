@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.0](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.0) -- 2026-05-25
+
 ### Added
 - **Window / WhyKnot / VRCFury QoL / Logs**: per-package session-log viewer with level filter chips (Debug / Info / Warning / Error), free-text search, live tail via `FileSystemWatcher`, and Open in Explorer buttons. Tabbed by every WkLogger registered with this package's registry.
 - **Project Settings / WhyKnot / VRCFury QoL**: Console mirror toggles per registered logger, default theme override (WhyKnot / VRCFury), hot-reload watcher enable toggle that takes effect on next Editor startup, and an Optional integrations status panel showing which versionDefine symbols (WK_NDMF, WK_VRC_SDK_AVATARS) are active.
