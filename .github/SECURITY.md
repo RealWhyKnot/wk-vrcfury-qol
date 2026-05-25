@@ -2,13 +2,13 @@
 
 ## Reporting a vulnerability
 
-If you find a security issue in this project, please **don't** file a public GitHub issue. Use GitHub's [private vulnerability reporting](https://github.com/RealWhyKnot/vrcfury-qol/security/advisories/new) form.
+If you find a security issue in this project, please **don't** file a public GitHub issue. Use GitHub's [private vulnerability reporting](https://github.com/RealWhyKnot/wk-vrcfury-qol/security/advisories/new) form.
 
 I'll acknowledge within a week and aim to release a fix or workaround within 30 days.
 
 ## Threat model summary
 
-`vrcfury-qol` is a Unity Editor-only tool. It runs at user privilege inside the Unity Editor process and:
+`wk-vrcfury-qol` is a Unity Editor-only tool. It runs at user privilege inside the Unity Editor process and:
 
 - **Does not make network requests.**
 - **Does not load native code or shell out to external binaries.**

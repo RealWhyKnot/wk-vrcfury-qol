@@ -11,7 +11,7 @@ The existing tools in `Editor/Tools/` are short -- borrow freely. This page is t
 internal static class MyPageTool {
     static MyPageTool() {
         VrcfQol.RegisterFlipbookPageTool(
-            label: "WhyKnot/vrcfury-qol/My page action",
+            label: "WhyKnot/wk-vrcfury-qol/My page action",
             action: ctx => {
                 // ctx.pages is the IList of FlipBookPage, ctx.pageIndex is the 0-based index.
                 Debug.Log($"Page #{ctx.pageIndex + 1} of \"{ctx.toggleName}\"");
@@ -37,7 +37,7 @@ VrcfQol.RegisterFlipbookPageButton(
 
 ```csharp
 VrcfQol.RegisterFlipbookBuilderTool(
-    label: "WhyKnot/vrcfury-qol/Reverse all pages",
+    label: "WhyKnot/wk-vrcfury-qol/Reverse all pages",
     action: ctx => {
         var reversed = new List<object>();
         foreach (var p in ctx.pages) reversed.Add(p);
@@ -53,7 +53,7 @@ VrcfQol.RegisterFlipbookBuilderTool(
 
 ```csharp
 VrcfQol.RegisterToggleTool(
-    label: "WhyKnot/vrcfury-qol/Print my name",
+    label: "WhyKnot/wk-vrcfury-qol/Print my name",
     action: ctx => Debug.Log($"Toggle '{ctx.toggleName}' has slider={ctx.slider}")
 );
 ```
@@ -63,7 +63,7 @@ VrcfQol.RegisterToggleTool(
 ```csharp
 VrcfQol.RegisterActionTool(
     vrcfActionFullName: "VF.Model.StateAction.ObjectToggleAction",
-    label: "WhyKnot/vrcfury-qol/Ping target",
+    label: "WhyKnot/wk-vrcfury-qol/Ping target",
     action: (prop, action) => {
         // reflect into `action` to read its fields without referencing the internal type.
     }
@@ -76,7 +76,7 @@ If none of the typed helpers fit, `RegisterPropertyTool(label, match, action, pr
 
 ```csharp
 VrcfQol.RegisterPropertyTool(
-    label: "WhyKnot/vrcfury-qol/Inspect this property",
+    label: "WhyKnot/wk-vrcfury-qol/Inspect this property",
     match: prop => prop.propertyPath.EndsWith(".myField"),
     action: prop => { /* work with prop */ },
     priority: 0,
@@ -90,7 +90,7 @@ For multi-object workflows that don't fit a right-click context, register a `[Me
 
 ```csharp
 internal static class MyTool {
-    [MenuItem("Tools/WhyKnot/vrcfury-qol/My Tool...")]
+    [MenuItem("Tools/WhyKnot/wk-vrcfury-qol/My Tool...")]
     private static void Open() {
         if (!VrcfQol.Reflection.TryEnsure(out var error)) {
             EditorUtility.DisplayDialog("My Tool", error, "OK");

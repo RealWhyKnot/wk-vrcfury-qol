@@ -72,7 +72,7 @@ namespace UmeVrcfQol {
 
         private static void OnInlineButtonClicked(Label pageLabel, VrcfQol.InlineButtonSpec spec) {
             if (!TryResolvePageContext(pageLabel, out var ctx, out var error)) {
-                EditorUtility.DisplayDialog("WhyKnot vrcfury-qol", error, "OK");
+                EditorUtility.DisplayDialog("WhyKnot wk-vrcfury-qol", error, "OK");
                 return;
             }
 
@@ -80,7 +80,7 @@ namespace UmeVrcfQol {
                 bool vis;
                 try { vis = spec.Visible(ctx); } catch { vis = true; }
                 if (!vis) {
-                    EditorUtility.DisplayDialog("WhyKnot vrcfury-qol",
+                    EditorUtility.DisplayDialog("WhyKnot wk-vrcfury-qol",
                         "This action is not available for this page right now.", "OK");
                     return;
                 }
@@ -90,7 +90,7 @@ namespace UmeVrcfQol {
                 spec.OnClick(ctx);
             } catch (System.Exception ex) {
                 VrcfQolLogger.Instance.Exception(ex);
-                EditorUtility.DisplayDialog("WhyKnot vrcfury-qol",
+                EditorUtility.DisplayDialog("WhyKnot wk-vrcfury-qol",
                     "Action failed. See Console.\n\n" + ex.Message, "OK");
             }
         }
@@ -131,7 +131,7 @@ namespace UmeVrcfQol {
 
             error =
                 "Could not find a flipbook toggle on the selected GameObject that contains this page. " +
-                "If the flipbook is on a different object than the current selection, use right-click WhyKnot / vrcfury-qol instead.";
+                "If the flipbook is on a different object than the current selection, use right-click WhyKnot / wk-vrcfury-qol instead.";
             return false;
         }
 

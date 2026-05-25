@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing, skim the [Troubleshooting wiki page](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Troubleshooting) -- common failure modes are documented there.
+        Before filing, skim the [Troubleshooting wiki page](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Troubleshooting) -- common failure modes are documented there.
 
   - type: textarea
     id: what-happened
@@ -60,7 +60,7 @@ body:
   - type: input
     id: vrcfqol-version
     attributes:
-      label: vrcfury-qol commit / version
+      label: wk-vrcfury-qol commit / version
       description: Latest commit SHA you have in `Editor/`, or the release tag.
       placeholder: e.g. main @ 968fc19
     validations:

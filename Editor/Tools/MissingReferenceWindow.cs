@@ -3,7 +3,7 @@
 // Non-modal window listing missing Object references found by
 // MissingReferenceWarningTool. Pops automatically on startup / scene-open
 // when there's anything to report; can also be opened manually from
-// Tools/WhyKnot/vrcfury-qol/Check for missing references...
+// Tools/WhyKnot/wk-vrcfury-qol/Check for missing references...
 //
 // Closing the window in auto-show mode marks the session as dismissed so
 // the warning won't pop again until the next assembly reload. Manually
@@ -88,8 +88,8 @@ namespace UmeVrcfQol.Tools {
                         $"{_missing.Count} missing reference{(_missing.Count == 1 ? "" : "s")} on VRCFury component(s). " +
                         (_autoShow
                             ? "This warning won't pop again until the next reload (script recompile / restart). " +
-                              "You can re-check anytime from Tools/WhyKnot/vrcfury-qol/Check for missing references..."
-                            : "Fix them in the Inspector or replace via Tools/WhyKnot/vrcfury-qol/Replace References."),
+                              "You can re-check anytime from Tools/WhyKnot/wk-vrcfury-qol/Check for missing references..."
+                            : "Fix them in the Inspector or replace via Tools/WhyKnot/wk-vrcfury-qol/Replace References."),
                         MessageType.Warning);
                 }
             }

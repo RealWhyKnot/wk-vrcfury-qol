@@ -6,12 +6,12 @@ Welcome, and thanks for taking an interest. Bug reports, feature requests, and p
 
 A bit of orientation goes a long way:
 
-- Skim the [Architecture](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Architecture) wiki page to see how tools, the reflection cache, and the inspector overlay fit together.
-- For a bug report, the [Troubleshooting](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Troubleshooting) wiki page covers the common scenarios -- please check it first.
+- Skim the [Architecture](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Architecture) wiki page to see how tools, the reflection cache, and the inspector overlay fit together.
+- For a bug report, the [Troubleshooting](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Troubleshooting) wiki page covers the common scenarios -- please check it first.
 
 ## Setting up the dev loop
 
-There's no build system here -- `vrcfury-qol` is a flat folder of `.cs` files compiled by Unity itself.
+There's no build system here -- `wk-vrcfury-qol` is a flat folder of `.cs` files compiled by Unity itself.
 
 **Prerequisites:**
 
@@ -23,12 +23,12 @@ There's no build system here -- `vrcfury-qol` is a flat folder of `.cs` files co
 
 Windows (PowerShell, run as admin):
 ```powershell
-New-Item -ItemType Junction -Path "C:\Path\To\YourProject\Assets\VrcfQol" -Target "C:\Path\To\vrcfury-qol\Editor"
+New-Item -ItemType Junction -Path "C:\Path\To\YourProject\Assets\VrcfQol" -Target "C:\Path\To\wk-vrcfury-qol\Editor"
 ```
 
 Linux / macOS:
 ```sh
-ln -s /path/to/vrcfury-qol/Editor /path/to/YourProject/Assets/VrcfQol
+ln -s /path/to/wk-vrcfury-qol/Editor /path/to/YourProject/Assets/VrcfQol
 ```
 
 Once linked, `VrcfQolHotReload.cs` will pick up `.cs` saves and trigger `AssetDatabase.Refresh()` even when Unity isn't focused. Tail `<ProjectRoot>/Logs/VrcfQolHotReload.log` to watch compiles in real time. **Bootstrap step:** focus Unity once after the first install so it compiles the scripts; from then on the watcher takes over.
@@ -41,7 +41,7 @@ The wiki is **source-controlled at `wiki/`** in this repo. That means:
 - **Do not edit on the github.com Wiki UI.** Web edits get overwritten the next time the sync workflow runs.
 - On every push to `main` that touches `wiki/**`, the [wiki-sync workflow](.github/workflows/wiki-sync.yml) mirrors the changes to the GitHub Wiki repo.
 
-**One-time wiki bootstrap.** GitHub doesn't create the wiki repo until a maintainer creates the first page through the web UI. If you see a `wiki repo doesn't exist yet` warning in the wiki-sync workflow, visit `https://github.com/RealWhyKnot/vrcfury-qol/wiki` and click **Create the first page** with any content (it'll be overwritten on the next sync). After that, every push that touches `wiki/**` syncs automatically.
+**One-time wiki bootstrap.** GitHub doesn't create the wiki repo until a maintainer creates the first page through the web UI. If you see a `wiki repo doesn't exist yet` warning in the wiki-sync workflow, visit `https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki` and click **Create the first page** with any content (it'll be overwritten on the next sync). After that, every push that touches `wiki/**` syncs automatically.
 
 ## Submitting a PR
 

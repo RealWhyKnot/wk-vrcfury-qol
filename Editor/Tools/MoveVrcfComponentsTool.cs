@@ -20,10 +20,10 @@
 //       components".
 //
 // Entry points:
-//   • GameObject hierarchy right-click  → "WhyKnot/vrcfury-qol/Move all VRCFury
+//   • GameObject hierarchy right-click  → "WhyKnot/wk-vrcfury-qol/Move all VRCFury
 //     components to..." (most ergonomic; the user is already in the hierarchy
 //     to pick a destination next).
-//   • Top-level menu                    → "GameObject/WhyKnot/vrcfury-qol/Move all
+//   • Top-level menu                    → "GameObject/WhyKnot/wk-vrcfury-qol/Move all
 //     VRCFury components to..." (mirrors the right-click).
 //
 // Both entry points open a small modal-ish EditorWindow where the user picks a
@@ -42,7 +42,7 @@ namespace UmeVrcfQol.Tools {
 
     internal static class MoveVrcfComponentsTool {
 
-        private const string GameObjectMenuPath = "GameObject/WhyKnot/vrcfury-qol/Move all VRCFury components to...";
+        private const string GameObjectMenuPath = "GameObject/WhyKnot/wk-vrcfury-qol/Move all VRCFury components to...";
 
         // Hierarchy right-click + GameObject menu. Priority 49 puts it just above
         // Unity's default "Center On Children" group (50).

@@ -9,9 +9,9 @@
 //   • Insert blank  — insert a new empty page right below this one
 //
 // Right-click menu (on a Flipbook page row):
-//   • WhyKnot/vrcfury-qol/Duplicate page below       (priority 25)
-//   • WhyKnot/vrcfury-qol/Insert empty page below    (priority 24)
-//   • WhyKnot/vrcfury-qol/Duplicate page to end      (priority 20, original)
+//   • WhyKnot/wk-vrcfury-qol/Duplicate page below       (priority 25)
+//   • WhyKnot/wk-vrcfury-qol/Insert empty page below    (priority 24)
+//   • WhyKnot/wk-vrcfury-qol/Duplicate page to end      (priority 20, original)
 //
 // "Below" semantics: the new page goes at index + 1 in the same flipbook.
 // Existing pages from index + 1 onward shift down.
@@ -27,17 +27,17 @@ namespace UmeVrcfQol.Tools {
 
         static DuplicateFlipbookPageTool() {
             VrcfQol.RegisterFlipbookPageTool(
-                label: "WhyKnot/vrcfury-qol/Duplicate page below",
+                label: "WhyKnot/wk-vrcfury-qol/Duplicate page below",
                 action: DuplicateBelow,
                 priority: 25
             );
             VrcfQol.RegisterFlipbookPageTool(
-                label: "WhyKnot/vrcfury-qol/Insert empty page below",
+                label: "WhyKnot/wk-vrcfury-qol/Insert empty page below",
                 action: InsertEmptyBelow,
                 priority: 24
             );
             VrcfQol.RegisterFlipbookPageTool(
-                label: "WhyKnot/vrcfury-qol/Duplicate page to end",
+                label: "WhyKnot/wk-vrcfury-qol/Duplicate page to end",
                 action: DuplicateToEnd,
                 priority: 20
             );

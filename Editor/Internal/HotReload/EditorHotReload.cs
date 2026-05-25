@@ -52,7 +52,7 @@ namespace UmeVrcfQol.Internal.HotReload {
         // bundled into a downstream package writes to a per-package log
         // directory automatically. The wk-core copy logs under
         // "WhyKnot/Logs/dev.whyknot.core.hotreload"; a copy inside
-        // dev.whyknot.avatar-qol logs under that package's name instead.
+        // dev.whyknot.wk-vrc-qol logs under that package's name instead.
         // No need to rewrite the constant when the sync script copies
         // this file into a downstream.
         private static readonly string LogSubpath = "WhyKnot/Logs/" + ResolveAsmIdentity() + ".hotreload";

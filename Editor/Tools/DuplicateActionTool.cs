@@ -1,7 +1,7 @@
 // DuplicateActionTool.cs
 //
 // Right-click any State Action inside a VRCFury Toggle (or inside a flipbook
-// page's state) and pick "WhyKnot/vrcfury-qol/Duplicate this action". The action gets
+// page's state) and pick "WhyKnot/wk-vrcfury-qol/Duplicate this action". The action gets
 // deep-cloned via the same JsonUtility round-trip the page-duplicator uses,
 // then inserted right below itself in the enclosing actions list.
 //
@@ -45,7 +45,7 @@ namespace UmeVrcfQol.Tools {
 
         static DuplicateActionTool() {
             VrcfQol.RegisterPropertyTool(
-                label: "WhyKnot/vrcfury-qol/Duplicate this action",
+                label: "WhyKnot/wk-vrcfury-qol/Duplicate this action",
                 match: prop => {
                     if (prop == null) return false;
                     if (prop.propertyType != SerializedPropertyType.ManagedReference) return false;

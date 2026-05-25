@@ -1,6 +1,6 @@
 # Installation
 
-`vrcfury-qol` ships as a flat folder of `.cs` files compiled by Unity itself. There's no asmdef, no package manifest, no native binaries.
+`wk-vrcfury-qol` ships as a flat folder of `.cs` files compiled by Unity itself. There's no asmdef, no package manifest, no native binaries.
 
 ## Option A -- Drop into your project (simplest)
 
@@ -28,12 +28,12 @@ Clone the repo somewhere outside your Unity project, then symlink the `Editor/` 
 
 **Windows (PowerShell, run as admin):**
 ```powershell
-New-Item -ItemType Junction -Path "C:\Path\To\YourProject\Assets\VrcfQol" -Target "C:\Path\To\vrcfury-qol\Editor"
+New-Item -ItemType Junction -Path "C:\Path\To\YourProject\Assets\VrcfQol" -Target "C:\Path\To\wk-vrcfury-qol\Editor"
 ```
 
 **Linux / macOS:**
 ```sh
-ln -s /path/to/vrcfury-qol/Editor /path/to/YourProject/Assets/VrcfQol
+ln -s /path/to/wk-vrcfury-qol/Editor /path/to/YourProject/Assets/VrcfQol
 ```
 
 ## Hot-reload bootstrap

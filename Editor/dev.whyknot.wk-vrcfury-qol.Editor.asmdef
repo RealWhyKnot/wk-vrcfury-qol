@@ -1,11 +1,7 @@
 {
-    "name": "dev.whyknot.vrcfury-qol.Tests.Editor",
-    "rootNamespace": "WhyKnot.VrcfQol.Tests",
-    "references": [
-        "dev.whyknot.vrcfury-qol.Editor",
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
-    ],
+    "name": "dev.whyknot.wk-vrcfury-qol.Editor",
+    "rootNamespace": "WhyKnot.VrcfQol",
+    "references": [],
     "includePlatforms": [
         "Editor"
     ],

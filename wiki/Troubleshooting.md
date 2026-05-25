@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common failure modes and what to check first. If your problem isn't here, file a [bug report](https://github.com/RealWhyKnot/vrcfury-qol/issues/new?template=bug_report.yml) -- include the Unity version, VRCFury version, and the affected tool.
+Common failure modes and what to check first. If your problem isn't here, file a [bug report](https://github.com/RealWhyKnot/wk-vrcfury-qol/issues/new?template=bug_report.yml) -- include the Unity version, VRCFury version, and the affected tool.
 
 ## "VRCFury runtime assembly ('VRCFury') not found."
 
@@ -8,14 +8,14 @@ You see this in a dialog when invoking a tool. It means the reflection cache cou
 
 **Check:**
 - VRCFury is actually imported into the project. The package shows up in `Packages/com.vrcfury.vrcfury/` (VCC install) or `Assets/VRCFury/` (manual install).
-- The VRCFury assembly name is still `"VRCFury"` (case-sensitive). If a future VRCFury release renames the assembly, this lookup will fail until [`Editor/VrcfQol.cs`](https://github.com/RealWhyKnot/vrcfury-qol/blob/main/Editor/VrcfQol.cs) is updated.
+- The VRCFury assembly name is still `"VRCFury"` (case-sensitive). If a future VRCFury release renames the assembly, this lookup will fail until [`Editor/VrcfQol.cs`](https://github.com/RealWhyKnot/wk-vrcfury-qol/blob/main/Editor/VrcfQol.cs) is updated.
 
 ## "Could not locate one or more VRCFury internal types."
 
 The assembly was found but a specific type (`VF.Model.VRCFury`, `VF.Model.Feature.Toggle`, etc.) couldn't be resolved.
 
 **Check:**
-- VRCFury version: this project is tested against **1.1303.x**. Significantly older or newer versions may rename internals. If your version moved a type, please [open a `vrcfury: compat` issue](https://github.com/RealWhyKnot/vrcfury-qol/issues) with the new path and we'll update the cache.
+- VRCFury version: this project is tested against **1.1303.x**. Significantly older or newer versions may rename internals. If your version moved a type, please [open a `vrcfury: compat` issue](https://github.com/RealWhyKnot/wk-vrcfury-qol/issues) with the new path and we'll update the cache.
 
 ## Right-click menu items don't appear
 
@@ -29,7 +29,7 @@ The framework hooks `EditorApplication.contextualPropertyMenu`, which runs when 
 
 The buttons are injected by `VrcfQolInspectorOverlay.cs`, which scans inspector windows every ~250 ms looking for labels matching `^Page #\d+$`. If buttons don't show up:
 
-- **VRCFury restyled the inspector.** This is best-effort UI injection. The right-click menu on a page row still works (`WhyKnot/vrcfury-qol/Duplicate page to end`).
+- **VRCFury restyled the inspector.** This is best-effort UI injection. The right-click menu on a page row still works (`WhyKnot/wk-vrcfury-qol/Duplicate page to end`).
 - **The page label format changed.** Future VRCFury versions might localise or restyle "Page #N". The overlay can be updated to recognise the new format.
 
 ## Auto Global Parameter banner missing
@@ -58,7 +58,7 @@ The stale row is skipped to avoid blindly overwriting a value the user didn't se
 
 The installed VRCFury version doesn't expose the legacy `VRCFuryConfig.features` list (or the lookup failed). Use **Move whole components** instead -- same end result for most workflows, just preserves the original component count.
 
-If you need merge behaviour and the field has been renamed, please [file a `vrcfury: compat` issue](https://github.com/RealWhyKnot/vrcfury-qol/issues) with the version you're on.
+If you need merge behaviour and the field has been renamed, please [file a `vrcfury: compat` issue](https://github.com/RealWhyKnot/wk-vrcfury-qol/issues) with the version you're on.
 
 ## Hot-reload log not updating
 

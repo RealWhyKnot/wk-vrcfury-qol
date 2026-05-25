@@ -1,8 +1,8 @@
 // VrcfQolLogger.cs
 //
-// vrcfury-qol's registered WkLogger instance. Every diagnostic line in
+// wk-vrcfury-qol's registered WkLogger instance. Every diagnostic line in
 // this package goes through VrcfQolLogger.Instance so the session file
-// at %LocalAppData%/WhyKnot/Logs/dev.whyknot.vrcfury-qol/session-*.log
+// at %LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol/session-*.log
 // captures the same content the user sees in the Unity Console -- and
 // quite a bit more besides, since Debug-level lines stay file-only.
 //
@@ -23,7 +23,7 @@ namespace UmeVrcfQol {
     [InitializeOnLoad]
     public static class VrcfQolLogger {
 
-        public const string PackageId = "dev.whyknot.vrcfury-qol";
+        public const string PackageId = "dev.whyknot.wk-vrcfury-qol";
         public const string DisplayName = "VRCFury QoL";
 
         public static readonly string Version = ResolveVersion();

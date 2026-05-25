@@ -51,17 +51,17 @@ namespace UmeVrcfQol.Tools {
                 danger: IsPreviewingPage
             );
             VrcfQol.RegisterFlipbookPageTool(
-                label: "WhyKnot/vrcfury-qol/Preview page",
+                label: "WhyKnot/wk-vrcfury-qol/Preview page",
                 action: ShowPagePreview,
                 priority: 35
             );
             VrcfQol.RegisterFlipbookBuilderTool(
-                label: "WhyKnot/vrcfury-qol/Preview flipbook page...",
+                label: "WhyKnot/wk-vrcfury-qol/Preview flipbook page...",
                 action: ShowFlipbookPagePicker,
                 priority: 35
             );
             VrcfQol.RegisterToggleTool(
-                label: "WhyKnot/vrcfury-qol/Preview toggle",
+                label: "WhyKnot/wk-vrcfury-qol/Preview toggle",
                 action: ShowTogglePreview,
                 priority: 35
             );
@@ -87,12 +87,12 @@ namespace UmeVrcfQol.Tools {
             StopPreview("stopped");
         }
 
-        [MenuItem("Tools/WhyKnot/vrcfury-qol/Stop previewing", priority = 36)]
+        [MenuItem("Tools/WhyKnot/wk-vrcfury-qol/Stop previewing", priority = 36)]
         private static void StopPreviewFromMenu() {
             StopActivePreview();
         }
 
-        [MenuItem("Tools/WhyKnot/vrcfury-qol/Stop previewing", true)]
+        [MenuItem("Tools/WhyKnot/wk-vrcfury-qol/Stop previewing", true)]
         private static bool StopPreviewFromMenuValidate() {
             return _active != null && _active.CloneRoot != null;
         }

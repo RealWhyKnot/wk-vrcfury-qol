@@ -112,7 +112,7 @@ namespace UmeVrcfQol {
 
             if (!supported) {
                 banner.style.borderLeftColor = new StyleColor(new Color(0.55f, 0.55f, 0.55f, 1f));
-                var msg = new Label("vrcfury-qol: this VRCFury version does not expose Global Parameter fields. Auto-sync disabled.");
+                var msg = new Label("wk-vrcfury-qol: this VRCFury version does not expose Global Parameter fields. Auto-sync disabled.");
                 msg.style.color = mutedText;
                 msg.style.flexGrow = 1;
                 msg.style.whiteSpace = WhiteSpace.Normal;
@@ -139,7 +139,7 @@ namespace UmeVrcfQol {
 
             string headline, tooltip;
             if (optedOut) {
-                headline = "vrcfury-qol: Global Parameter sync off";
+                headline = "wk-vrcfury-qol: Global Parameter sync off";
                 tooltip = "Global Parameter is NOT being kept in sync with the Menu Path for this toggle. Click Turn on to resume syncing.";
                 if (foundMine && !string.IsNullOrEmpty(mine.CurrentGlobalParam)) {
                     var collidesWithAnotherOptedOut = false;
@@ -159,10 +159,10 @@ namespace UmeVrcfQol {
                        && !string.IsNullOrEmpty(mine.MenuPath)
                        && !string.IsNullOrEmpty(mine.CurrentGlobalParam)
                        && mine.CurrentGlobalParam != mine.MenuPath) {
-                headline = $"vrcfury-qol: Global Parameter auto-synced with Menu Path (renamed to '{mine.CurrentGlobalParam}' to avoid collision)";
+                headline = $"wk-vrcfury-qol: Global Parameter auto-synced with Menu Path (renamed to '{mine.CurrentGlobalParam}' to avoid collision)";
                 tooltip = $"Another Toggle on this avatar already uses the menu-path name '{mine.MenuPath}'. To avoid a VRCFury build error, this Toggle's globalParam was set to '{mine.CurrentGlobalParam}'. Rename the menu path to take ownership of '{mine.MenuPath}' again.";
             } else {
-                headline = "vrcfury-qol: Global Parameter auto-synced with Menu Path";
+                headline = "wk-vrcfury-qol: Global Parameter auto-synced with Menu Path";
                 tooltip = "Keeps 'Use Global Parameter' checked and 'globalParam' equal to the Menu Path so VRCFury cannot wipe custom work during avatar updates.";
             }
 

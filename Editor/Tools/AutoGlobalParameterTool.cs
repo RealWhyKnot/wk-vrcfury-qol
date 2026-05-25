@@ -28,7 +28,7 @@
 //   across editor restarts because GlobalObjectId is stable.
 //
 //   It's NOT forced blindly: each toggle can opt out via:
-//       - Right-click -> "WhyKnot / vrcfury-qol / Disable global parameter sync",
+//       - Right-click -> "WhyKnot / wk-vrcfury-qol / Disable global parameter sync",
 //       - or the inline "Disable" button on the green banner at the top of the
 //         Toggle inspector (see VrcfQolInspectorOverlay).
 //
@@ -62,7 +62,7 @@ using System.Runtime.CompilerServices;
 using UnityEditor;
 using UnityEngine;
 
-[assembly: InternalsVisibleTo("dev.whyknot.vrcfury-qol.Tests.Editor")]
+[assembly: InternalsVisibleTo("dev.whyknot.wk-vrcfury-qol.Tests.Editor")]
 
 namespace UmeVrcfQol.Tools {
 
@@ -97,13 +97,13 @@ namespace UmeVrcfQol.Tools {
 
             // Right-click menu items for manual control from the Toggle inspector.
             VrcfQol.RegisterToggleTool(
-                label: "WhyKnot/vrcfury-qol/Disable global parameter sync",
+                label: "WhyKnot/wk-vrcfury-qol/Disable global parameter sync",
                 action: ctx => SetOptedOut(ctx.vrcfComponent, true),
                 priority: 6,
                 enabled: ctx => !IsOptedOut(ctx.vrcfComponent)
             );
             VrcfQol.RegisterToggleTool(
-                label: "WhyKnot/vrcfury-qol/Enable global parameter sync",
+                label: "WhyKnot/wk-vrcfury-qol/Enable global parameter sync",
                 action: ctx => {
                     SetOptedOut(ctx.vrcfComponent, false);
                     ApplyTo(ctx.vrcfComponent, force: true);
@@ -112,7 +112,7 @@ namespace UmeVrcfQol.Tools {
                 enabled: ctx => IsOptedOut(ctx.vrcfComponent)
             );
             VrcfQol.RegisterToggleTool(
-                label: "WhyKnot/vrcfury-qol/Sync global parameter now",
+                label: "WhyKnot/wk-vrcfury-qol/Sync global parameter now",
                 action: ctx => ApplyTo(ctx.vrcfComponent, force: true),
                 priority: 5
             );

@@ -6,13 +6,13 @@
 
 Quality-of-life Editor tools for [VRCFury](https://vrcfury.com/). The goal: features appear *where you're already working* -- right-click a page, click a button on a flipbook row, see a banner on a Toggle, drop in two objects to swap references -- instead of hiding behind a separate window.
 
-The framework is designed so adding a new tool is usually a single small file with one `[InitializeOnLoad]` registration. See the [Adding a Tool](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Adding-a-Tool) wiki page.
+The framework is designed so adding a new tool is usually a single small file with one `[InitializeOnLoad]` registration. See the [Adding a Tool](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Adding-a-Tool) wiki page.
 
 ## What you get
 
-- **Move all VRCFury components** between GameObjects in one Undo step. Pick "Move whole components" to preserve serialization shape, or "Merge into one component" to consolidate features onto a single carrier object. *(Right-click a GameObject -> WhyKnot -> vrcfury-qol -> Move all VRCFury components to...)*
-- **Replace references in selection.** Pick GameObjects, the window lists every distinct Object referenced by their VRCFury components -- one row per unique value, with a count of how many places it's used. Drag a replacement onto a row and click Apply; every occurrence of that object across the scan is swapped in one Undo step. Per-selection *Include children* toggle controls whether each entry recurses into descendants. *(Tools -> WhyKnot -> vrcfury-qol -> Replace References..., or right-click a selection -> WhyKnot -> vrcfury-qol -> Replace references in selection...)*
-- **Missing-reference warning.** On editor startup (and again every assembly reload), the tool scans every VRCFury component in the open scene for `Object` references whose target has been deleted, and pops a non-modal window listing each one with a Ping button. Dismiss it once and it stays dismissed until the next reload -- so real problems can't linger silently, but you don't get nagged after you've acknowledged the situation. Can be re-run anytime via *Tools -> WhyKnot -> vrcfury-qol -> Check for missing references...*.
+- **Move all VRCFury components** between GameObjects in one Undo step. Pick "Move whole components" to preserve serialization shape, or "Merge into one component" to consolidate features onto a single carrier object. *(Right-click a GameObject -> WhyKnot -> wk-vrcfury-qol -> Move all VRCFury components to...)*
+- **Replace references in selection.** Pick GameObjects, the window lists every distinct Object referenced by their VRCFury components -- one row per unique value, with a count of how many places it's used. Drag a replacement onto a row and click Apply; every occurrence of that object across the scan is swapped in one Undo step. Per-selection *Include children* toggle controls whether each entry recurses into descendants. *(Tools -> WhyKnot -> wk-vrcfury-qol -> Replace References..., or right-click a selection -> WhyKnot -> wk-vrcfury-qol -> Replace references in selection...)*
+- **Missing-reference warning.** On editor startup (and again every assembly reload), the tool scans every VRCFury component in the open scene for `Object` references whose target has been deleted, and pops a non-modal window listing each one with a Ping button. Dismiss it once and it stays dismissed until the next reload -- so real problems can't linger silently, but you don't get nagged after you've acknowledged the situation. Can be re-run anytime via *Tools -> WhyKnot -> wk-vrcfury-qol -> Check for missing references...*.
 - **Auto-synced Global Parameter on every Toggle.** A green banner on the Toggle inspector confirms `useGlobalParam = true` and `globalParam = MenuPath` are kept in sync. Per-toggle opt-out via the banner button or right-click menu. Stops VRCFury from silently renaming parameters during avatar regen.
 - **Preview toggles and flipbooks.** The Toggle banner and each flipbook page row include a `Preview` button that creates a temporary, non-saveable avatar copy in place, applies the selected toggle or page to that copy, and hides the source avatar in Scene view. It does not move or reframe the Scene camera. While the copy is active, the same button turns into a red `Stop Previewing` button that destroys the copy and restores visibility.
 - **Migrate child toggles into a Flipbook.** Right-click a Flipbook Builder action; it scans the same GameObject + descendants for non-flipbook VRCFury Toggles and folds each into the flipbook as a new page, deleting the source components. Confirmation dialog shows exactly what will happen.
@@ -20,7 +20,7 @@ The framework is designed so adding a new tool is usually a single small file wi
 - **Duplicate one state action** in place with `Duplicate item`, or use `Copy to page` on a flipbook page action to append just that one BlendShape / Material Swap / action to another page.
 - **Hot reload + compile-error log.** Watches `Assets/**/*.cs` and triggers `AssetDatabase.Refresh()` even when Unity is unfocused. Per-assembly compile summary + errors appended to `<ProjectRoot>/Logs/VrcfQolHotReload.log` (rolls over at 512 KB).
 
-Detailed walkthroughs of every tool live in the [Tools Overview](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Tools-Overview) wiki page.
+Detailed walkthroughs of every tool live in the [Tools Overview](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Tools-Overview) wiki page.
 
 ## Installation
 
@@ -32,27 +32,27 @@ Add the WhyKnot VPM listing to the [VRChat Creator Companion](https://creators.v
 2. If that doesn't work, in VCC go to **Settings -> Packages -> Add Repository**, paste `https://vpm.whyknot.dev/index.json`, click **I Understand, Add Repository**.
 3. Open any project, click **Manage Project**, find **VRCFury QoL** in the package list, hit **Add**.
 
-Unity compiles the package into a dedicated `dev.whyknot.vrcfury-qol.Editor` assembly (`Editor/` only -- nothing leaks into runtime builds). Hard-depends on `com.vrcfury.vrcfury` (>= 1.1300.0); VCC will refuse to install without VRCFury present.
+Unity compiles the package into a dedicated `dev.whyknot.wk-vrcfury-qol.Editor` assembly (`Editor/` only -- nothing leaks into runtime builds). Hard-depends on `com.vrcfury.vrcfury` (>= 1.1300.0); VCC will refuse to install without VRCFury present.
 
 ### Manual install
 
-For Unity projects not managed by VCC: download `dev.whyknot.vrcfury-qol-X.Y.Z.zip` from [the latest release](https://github.com/RealWhyKnot/vrcfury-qol/releases/latest), unzip into `Packages/dev.whyknot.vrcfury-qol/` (so `Packages/dev.whyknot.vrcfury-qol/package.json` exists), and Unity's Package Manager picks it up on next refresh. VRCFury must already be installed in the project.
+For Unity projects not managed by VCC: download `dev.whyknot.wk-vrcfury-qol-X.Y.Z.zip` from [the latest release](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/latest), unzip into `Packages/dev.whyknot.wk-vrcfury-qol/` (so `Packages/dev.whyknot.wk-vrcfury-qol/package.json` exists), and Unity's Package Manager picks it up on next refresh. VRCFury must already be installed in the project.
 
 Tested against VRCFury **1.1303.x** on Unity **2022.3**.
 
-For per-clone setup steps (hot-reload bootstrap, etc.) see the [Installation](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Installation) wiki page.
+For per-clone setup steps (hot-reload bootstrap, etc.) see the [Installation](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Installation) wiki page.
 
 ## Adding your own tool
 
-A tool is a small `[InitializeOnLoad]` static class that registers itself with `VrcfQol`. The framework provides typed helpers so your tool never has to walk the reflection cache by hand. The full developer guide with examples for every `Register*` method lives at [Adding a Tool](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Adding-a-Tool).
+A tool is a small `[InitializeOnLoad]` static class that registers itself with `VrcfQol`. The framework provides typed helpers so your tool never has to walk the reflection cache by hand. The full developer guide with examples for every `Register*` method lives at [Adding a Tool](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Adding-a-Tool).
 
 ## Documentation
 
-- [Wiki home](https://github.com/RealWhyKnot/vrcfury-qol/wiki) -- long-form docs
-- [Tools Overview](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Tools-Overview) -- every shipping tool
-- [Architecture](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Architecture) -- how the framework hooks VRCFury via reflection + UI overlay
-- [Adding a Tool](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Adding-a-Tool) -- developer guide for new tools
-- [Troubleshooting](https://github.com/RealWhyKnot/vrcfury-qol/wiki/Troubleshooting) -- common failure modes
+- [Wiki home](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki) -- long-form docs
+- [Tools Overview](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Tools-Overview) -- every shipping tool
+- [Architecture](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Architecture) -- how the framework hooks VRCFury via reflection + UI overlay
+- [Adding a Tool](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Adding-a-Tool) -- developer guide for new tools
+- [Troubleshooting](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Troubleshooting) -- common failure modes
 
 ## Not a replacement for review
 

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to suggest an improvement. Skim the [wiki](https://github.com/RealWhyKnot/vrcfury-qol/wiki) first to check whether the behaviour you want already exists or has been considered.
+        Thanks for taking the time to suggest an improvement. Skim the [wiki](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki) first to check whether the behaviour you want already exists or has been considered.
 
   - type: textarea
     id: problem
