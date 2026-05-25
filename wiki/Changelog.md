@@ -11,7 +11,14 @@ The most recent release is at the top.
 
 ## Unreleased
 
-_No notable changes since the last release._
+### Added
+- **Window / WhyKnot / VRCFury QoL / Logs**: per-package session-log viewer with level filter chips (Debug / Info / Warning / Error), free-text search, live tail via `FileSystemWatcher`, and Open in Explorer buttons. Tabbed by every WkLogger registered with this package's registry.
+- **Project Settings / WhyKnot / VRCFury QoL**: Console mirror toggles per registered logger, default theme override (WhyKnot / VRCFury), hot-reload watcher enable toggle that takes effect on next Editor startup, and an Optional integrations status panel showing which versionDefine symbols (WK_NDMF, WK_VRC_SDK_AVATARS) are active.
+- **Window / WhyKnot / Hot Reload Status**: refresh counter, last compile result, recent file events, Open Log button, watcher-enabled toggle.
+
+### Changed
+- Bundled `Editor/Internal/` refreshed from the wk-core 1.2.0 surface. The 1.2.0 source ships an NDMF-first build pipeline (`WkAvatarPass<TSession>` + `WkAvatarPipeline.Register` routing through NDMF when installed and through four phase-bucket `IVRCSDKPreprocessAvatarCallback` implementations as a fallback), a three-tier generated-asset scope (Temporary / Session / Persistent), an in-house animator-builder (`WkAac.For` returning a fluent `IWkAnimatorBuilder`; no third-party AAC dependency), a `WkAvatarPreviewSession` with original<->proxy mapping + force-reset + crash recovery, UI Toolkit primitive set + USS theme stylesheets, a buffered `WkLogger` writer with full lifecycle envelope, and the hot-reload watcher now covers `.asmdef` + `.asmref` changes with `InternalBufferOverflowException` recovery.
+- Existing tool code keeps the prior API surface; subsequent feature work picks up the new helpers incrementally.
 
 ---
 
