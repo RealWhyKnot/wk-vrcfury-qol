@@ -9,9 +9,14 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.0-beta.2](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.0-beta.2) -- 2026-05-25
+
 ### Breaking
 - Package ID renamed from `dev.whyknot.vrcfury-qol` to `dev.whyknot.wk-vrcfury-qol`. GitHub repo renamed from `RealWhyKnot/vrcfury-qol` to `RealWhyKnot/wk-vrcfury-qol`. VCC has no in-place upgrade path between different package IDs -- remove the old package and add the new one. Menu entries move from `Tools/WhyKnot/vrcfury-qol/...` to `Tools/WhyKnot/wk-vrcfury-qol/...` (same for `GameObject/WhyKnot/wk-vrcfury-qol/...` right-click entries).
-- Rename package to wk-vrcfury-qol + add author-reservation LICENSE clause (19bf244)
 
 ### License
 - `LICENSE` now carries a GPL-3.0 Section 7 author-reservation clause: the copyright holder (WhyKnot) reserves the right to incorporate this software into closed-source works distributed by the copyright holder, in particular VRChat avatar uploads. Recipients' GPL rights and obligations are unchanged.
