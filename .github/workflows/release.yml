@@ -204,7 +204,7 @@ jobs:
             echo ""
             echo "| Asset | Size | SHA-256 |"
             echo "|-------|------|---------|"
-            printf '| [`%s`](%s) | %s bytes | `%s` |\n' "$ZIP_NAME" "$ZIP_URL" "$ZIP_SIZE" "$ZIP_SHA"
+            echo "| [\`$ZIP_NAME\`]($ZIP_URL) | $ZIP_SIZE bytes | \`$ZIP_SHA\` |"
           } > "$body_file"
           echo "body_file=$body_file" >> "$GITHUB_OUTPUT"
 
