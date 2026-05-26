@@ -62,6 +62,7 @@ namespace UmeVrcfQol.Internal.HotReload {
         private void DrawSummary() {
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
                 EditorGUILayout.LabelField("Refresh count",     EditorHotReload.RefreshCount.ToString());
+                EditorGUILayout.LabelField("Shader reimports",  EditorHotReload.ShaderReimportCount.ToString());
                 EditorGUILayout.LabelField("Last compile",      EditorHotReload.LastCompileResult);
                 EditorGUILayout.LabelField("Log file",          EditorHotReload.LogFilePath ?? "(not initialised)");
             }

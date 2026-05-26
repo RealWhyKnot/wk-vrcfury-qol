@@ -18,17 +18,29 @@
 // files system-wide.
 //
 // Behaviour:
-//   * Two FileSystemWatchers (recursive, *.cs) cover both roots Unity
-//     treats as live script source: `<project>/Assets/` (the legacy
+//   * Two FileSystemWatchers (recursive) cover both roots Unity
+//     treats as live source: `<project>/Assets/` (the legacy
 //     drop-scripts-anywhere workflow) and `<project>/Packages/` (where
 //     local-deployed packages like dev.whyknot.* iterate). Either watcher
 //     flipping the flag triggers a refresh. Library/PackageCache/ is
 //     deliberately not watched because read-only VPM installs don't
 //     iterate and the cache churns on its own.
+//   * Tracked extensions: .cs / .asmdef / .asmref for script reload,
+//     .shader / .compute / .cginc / .hlsl for shader reload.
 //   * EditorApplication.update debounces the flag (~0.4 s) and then
 //     calls AssetDatabase.Refresh(). Unity happily refreshes from a
 //     scripted call even when the editor window isn't focused, which
 //     is the whole point.
+//   * Shader sources additionally get AssetDatabase.ImportAsset(...
+//     ForceUpdate) after the Refresh: Unity's ShaderCache occasionally
+//     fails to invalidate the compiled binary when a .shader source
+//     changes (especially edits to pass-scope state directives that
+//     don't alter the HLSL the compiler hashes per pass), so a plain
+//     Refresh isn't always enough to make a deployed shader actually
+//     run with its new contents. .cginc / .hlsl include files trigger
+//     the same forced reimport on every .shader file under the same
+//     deployed package root, because Unity's dependency-tracked
+//     reimport of dependent shaders is subject to the same cache miss.
 //   * CompilationPipeline.assemblyCompilationFinished records a
 //     one-line summary per assembly plus one line per compile error.
 //     Errors mirror to the Unity Console so the user notices; per-
@@ -75,12 +87,20 @@ namespace UmeVrcfQol.Internal.HotReload {
         private static volatile bool _pendingRefresh;
         private static double _refreshDueAt;
         private static int _refreshCounter;
+        private static int _shaderReimportCounter;
         private static string _logPath;
         private static readonly object _writeLock = new object();
+
+        // Pending shader source paths -- OS paths captured from the watcher,
+        // converted to Unity asset paths at Tick time and ForceUpdate'd after
+        // the AssetDatabase.Refresh() call.
+        private static readonly HashSet<string> _pendingShaderPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly object _pendingShaderPathsLock = new object();
 
         // ---- diagnostic state exposed to the status viewer ----------
 
         internal static int RefreshCount => _refreshCounter;
+        internal static int ShaderReimportCount => _shaderReimportCounter;
         internal static string LogFilePath => _logPath;
         internal static IReadOnlyList<RecentEvent> RecentEvents => _recentEvents;
         internal static string LastCompileResult { get; private set; } = "(no compile yet)";
@@ -182,7 +202,7 @@ namespace UmeVrcfQol.Internal.HotReload {
                 _watcherState[w] = new WatcherState {
                     Root = root,
                     Label = label,
-                    FilterDescription = "*.cs / *.asmdef / *.asmref",
+                    FilterDescription = "*.cs / *.asmdef / *.asmref / *.shader / *.compute / *.cginc / *.hlsl",
                 };
                 LogInfo($"[Watcher] Active on {root} ({label}, buffer={WatcherBufferSize / 1024} KB)");
             } catch (Exception ex) {
@@ -229,6 +249,9 @@ namespace UmeVrcfQol.Internal.HotReload {
             if (!IsTrackedExtension(e.FullPath)) return;
             _pendingRefresh = true;
             _refreshDueAt = EditorApplication.timeSinceStartup + DebounceSeconds;
+            if (IsShaderSource(e.FullPath)) {
+                lock (_pendingShaderPathsLock) { _pendingShaderPaths.Add(e.FullPath); }
+            }
             RecordEvent(e.ChangeType.ToString(), e.FullPath);
             LogDebug($"[Watcher] {e.ChangeType} {TrimPath(e.FullPath)}");
         }
@@ -238,6 +261,9 @@ namespace UmeVrcfQol.Internal.HotReload {
             if (!IsTrackedExtension(e.FullPath) && !IsTrackedExtension(e.OldFullPath)) return;
             _pendingRefresh = true;
             _refreshDueAt = EditorApplication.timeSinceStartup + DebounceSeconds;
+            if (IsShaderSource(e.FullPath)) {
+                lock (_pendingShaderPathsLock) { _pendingShaderPaths.Add(e.FullPath); }
+            }
             RecordEvent("Renamed", e.FullPath);
             LogDebug($"[Watcher] Renamed {TrimPath(e.OldFullPath)} -> {TrimPath(e.FullPath)}");
         }
@@ -256,7 +282,26 @@ namespace UmeVrcfQol.Internal.HotReload {
             if (string.IsNullOrEmpty(path)) return false;
             return path.EndsWith(".cs",     StringComparison.OrdinalIgnoreCase)
                 || path.EndsWith(".asmdef", StringComparison.OrdinalIgnoreCase)
-                || path.EndsWith(".asmref", StringComparison.OrdinalIgnoreCase);
+                || path.EndsWith(".asmref", StringComparison.OrdinalIgnoreCase)
+                || IsShaderSource(path);
+        }
+
+        private static bool IsShaderSource(string path) {
+            if (string.IsNullOrEmpty(path)) return false;
+            return path.EndsWith(".shader",  StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".compute", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".cginc",   StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".hlsl",    StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Whether the file is a shader binary the importer can recompile
+        // directly (.shader, .compute). Include files (.cginc, .hlsl) don't
+        // have their own shader importer; their changes invalidate dependent
+        // .shader files instead, handled separately in DrainPendingShaders.
+        private static bool IsRecompilableShaderAsset(string path) {
+            if (string.IsNullOrEmpty(path)) return false;
+            return path.EndsWith(".shader",  StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".compute", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void RecordEvent(string kind, string path) {
@@ -272,9 +317,115 @@ namespace UmeVrcfQol.Internal.HotReload {
             if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
             _pendingRefresh = false;
             _refreshCounter++;
+
+            // Snapshot the pending shader set BEFORE the AssetDatabase.Refresh
+            // call, in case Refresh itself triggers another OnChange burst.
+            List<string> shaderOsPaths = null;
+            lock (_pendingShaderPathsLock) {
+                if (_pendingShaderPaths.Count > 0) {
+                    shaderOsPaths = new List<string>(_pendingShaderPaths);
+                    _pendingShaderPaths.Clear();
+                }
+            }
+
             LogDebug($"[Refresh] AssetDatabase.Refresh() #{_refreshCounter}");
             try { AssetDatabase.Refresh(); }
             catch (Exception ex) { LogException(ex, "[Refresh] AssetDatabase.Refresh() failed"); }
+
+            if (shaderOsPaths != null) DrainPendingShaders(shaderOsPaths);
+        }
+
+        // Force-reimport every changed .shader / .compute the watcher caught,
+        // and for any .cginc / .hlsl includes, force-reimport every .shader /
+        // .compute under the same deployed package or Assets-subtree root.
+        // This pierces Unity's ShaderCache, which otherwise occasionally
+        // returns a stale compiled binary even when the source file has
+        // changed -- particularly for edits to pass-scope state directives
+        // that don't alter the per-pass HLSL the compiler hashes.
+        private static void DrainPendingShaders(List<string> osPaths) {
+            var directReimports = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var includeChangeRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var osPath in osPaths) {
+                var unityPath = ToUnityPath(osPath);
+                if (string.IsNullOrEmpty(unityPath)) continue;
+                if (IsRecompilableShaderAsset(osPath)) {
+                    directReimports.Add(unityPath);
+                } else {
+                    // .cginc / .hlsl: collect the package / Assets-subtree
+                    // root we'll later scan for dependent shaders.
+                    var root = ResolveReimportRoot(unityPath);
+                    if (!string.IsNullOrEmpty(root)) includeChangeRoots.Add(root);
+                }
+            }
+            // Expand each include-change root into the actual .shader and
+            // .compute files inside it. Using AssetDatabase.FindAssets keeps
+            // us in Unity's path space and respects whatever the project's
+            // Library/ thinks is currently visible.
+            if (includeChangeRoots.Count > 0) {
+                foreach (var root in includeChangeRoots) {
+                    CollectShadersUnder(root, "t:Shader",        directReimports);
+                    CollectShadersUnder(root, "t:ComputeShader", directReimports);
+                }
+            }
+            if (directReimports.Count == 0) return;
+            int reimported = 0;
+            foreach (var unityPath in directReimports) {
+                try {
+                    AssetDatabase.ImportAsset(unityPath, ImportAssetOptions.ForceUpdate);
+                    reimported++;
+                    LogDebug($"[Shader] ForceUpdate {unityPath}");
+                } catch (Exception ex) {
+                    LogException(ex, $"[Shader] ForceUpdate {unityPath} failed");
+                }
+            }
+            if (reimported > 0) {
+                _shaderReimportCounter += reimported;
+                LogInfo(
+                    $"[Shader] Reimported {reimported} shader asset(s) " +
+                    $"after {osPaths.Count} watched change(s)" +
+                    (includeChangeRoots.Count > 0 ? $", expanded {includeChangeRoots.Count} include-change root(s)" : ""));
+            }
+        }
+
+        private static void CollectShadersUnder(string root, string typeFilter, HashSet<string> sink) {
+            string[] guids;
+            try {
+                guids = AssetDatabase.FindAssets(typeFilter, new[] { root });
+            } catch (Exception ex) {
+                LogException(ex, $"[Shader] FindAssets {typeFilter} under {root} failed");
+                return;
+            }
+            foreach (var guid in guids) {
+                var p = AssetDatabase.GUIDToAssetPath(guid);
+                if (!string.IsNullOrEmpty(p)) sink.Add(p);
+            }
+        }
+
+        // Pick a Unity-path "scan root" for finding shaders that depend on a
+        // changed include file. For files under Packages/<id>/... that's the
+        // package root -- the iteration loop the local deploy script feeds.
+        // Assets/ files are deliberately skipped: a stray .cginc edit in an
+        // avatar project could otherwise trigger reimport of every third-party
+        // shader (Poiyomi, lilToon, etc.) and stall the editor. Users iterating
+        // on Assets-side shaders can fall back to the per-tool "Reimport"
+        // button or right-click reimport in the Project window.
+        private static string ResolveReimportRoot(string unityPath) {
+            if (string.IsNullOrEmpty(unityPath)) return null;
+            unityPath = unityPath.Replace('\\', '/');
+            if (unityPath.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)) {
+                int firstSlash = unityPath.IndexOf('/', "Packages/".Length);
+                if (firstSlash > 0) return unityPath.Substring(0, firstSlash);
+                return "Packages";
+            }
+            return null;
+        }
+
+        // Convert a FileSystemWatcher OS path to the Unity asset path Unity's
+        // AssetDatabase APIs expect (project-relative, forward slashes).
+        private static string ToUnityPath(string osPath) {
+            var trimmed = TrimPath(osPath);
+            if (string.IsNullOrEmpty(trimmed)) return null;
+            return trimmed.Replace('\\', '/');
         }
 
         // ----- compile result logging ------------------------------------
