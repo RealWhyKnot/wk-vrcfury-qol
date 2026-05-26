@@ -278,7 +278,7 @@ namespace UmeVrcfQol.Internal.HotReload {
             return false;
         }
 
-        private static bool IsTrackedExtension(string path) {
+        internal static bool IsTrackedExtension(string path) {
             if (string.IsNullOrEmpty(path)) return false;
             return path.EndsWith(".cs",     StringComparison.OrdinalIgnoreCase)
                 || path.EndsWith(".asmdef", StringComparison.OrdinalIgnoreCase)
@@ -286,7 +286,7 @@ namespace UmeVrcfQol.Internal.HotReload {
                 || IsShaderSource(path);
         }
 
-        private static bool IsShaderSource(string path) {
+        internal static bool IsShaderSource(string path) {
             if (string.IsNullOrEmpty(path)) return false;
             return path.EndsWith(".shader",  StringComparison.OrdinalIgnoreCase)
                 || path.EndsWith(".compute", StringComparison.OrdinalIgnoreCase)
@@ -298,7 +298,7 @@ namespace UmeVrcfQol.Internal.HotReload {
         // directly (.shader, .compute). Include files (.cginc, .hlsl) don't
         // have their own shader importer; their changes invalidate dependent
         // .shader files instead, handled separately in DrainPendingShaders.
-        private static bool IsRecompilableShaderAsset(string path) {
+        internal static bool IsRecompilableShaderAsset(string path) {
             if (string.IsNullOrEmpty(path)) return false;
             return path.EndsWith(".shader",  StringComparison.OrdinalIgnoreCase)
                 || path.EndsWith(".compute", StringComparison.OrdinalIgnoreCase);
@@ -409,7 +409,7 @@ namespace UmeVrcfQol.Internal.HotReload {
         // shader (Poiyomi, lilToon, etc.) and stall the editor. Users iterating
         // on Assets-side shaders can fall back to the per-tool "Reimport"
         // button or right-click reimport in the Project window.
-        private static string ResolveReimportRoot(string unityPath) {
+        internal static string ResolveReimportRoot(string unityPath) {
             if (string.IsNullOrEmpty(unityPath)) return null;
             unityPath = unityPath.Replace('\\', '/');
             if (unityPath.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)) {
