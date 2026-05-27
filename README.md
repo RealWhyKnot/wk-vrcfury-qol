@@ -18,7 +18,7 @@ The framework is designed so adding a new tool is usually a single small file wi
 - **Migrate child toggles into a Flipbook.** Right-click a Flipbook Builder action; it scans the same GameObject + descendants for non-flipbook VRCFury Toggles and folds each into the flipbook as a new page, deleting the source components. Confirmation dialog shows exactly what will happen.
 - **Duplicate a flipbook page** below the current page via the inline `Duplicate` button next to every `Page #N` label, or duplicate to the end from the right-click menu.
 - **Duplicate one state action** in place with `Duplicate item`, or use `Copy to page` on a flipbook page action to append just that one BlendShape / Material Swap / action to another page.
-- **Hot reload + compile-error log.** Watches `Assets/**/*.cs` and triggers `AssetDatabase.Refresh()` even when Unity is unfocused. Per-assembly compile summary + errors appended to `<ProjectRoot>/Logs/VrcfQolHotReload.log` (rolls over at 512 KB).
+- **Hot reload + logs.** Watches `Assets/**/*.cs` and triggers `AssetDatabase.Refresh()` even when Unity is unfocused. Per-package session logs live under `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol/`; hot-reload sessions use `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/`. Open them from *Window -> WhyKnot -> VRCFury QoL -> Logs* and check watcher state from *Window -> WhyKnot -> VRCFury QoL -> Hot Reload Status*.
 
 Detailed walkthroughs of every tool live in the [Tools Overview](https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Tools-Overview) wiki page.
 
