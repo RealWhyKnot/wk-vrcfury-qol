@@ -22,7 +22,8 @@
 
     Notes    Reads the current "## Unreleased" section content (or, with
              -ForVersion, reads the section for that version) and writes it to
-             stdout. Used to inject the section into the GitHub release body.
+             stdout. Stable -ForVersion notes also include immediately prior
+             prerelease sections until the previous stable section.
 
   The script is invoked from .github/workflows/changelog-append.yml and
   .github/workflows/release.yml. PowerShell Core (pwsh) is used because both
@@ -40,7 +41,8 @@
 
 .PARAMETER ForVersion
   When set on Notes mode, returns the section for that already-promoted
-  version instead of the live "## Unreleased" section.
+  version instead of the live "## Unreleased" section. Stable versions include
+  directly preceding prerelease sections in the returned release body.
 
 .PARAMETER Repo
   owner/repo for release-link generation, defaults to $env:GITHUB_REPOSITORY.
@@ -264,6 +266,26 @@ function Render-UnreleasedBody {
     return $out
 }
 
+function Test-IsPrereleaseVersion {
+    param([string]$Version)
+    return $Version -like '*-*'
+}
+
+function Get-VersionSections {
+    param([string]$Content)
+
+    $pattern = '(?ms)^##\s+\[(?<Version>[^\]]+)\][^\n]*\n(?<Body>.*?)(?=^---\s*$|^##\s+|\z)'
+    $matches = [regex]::Matches($Content, $pattern)
+    $sections = @()
+    foreach ($m in $matches) {
+        $sections += [pscustomobject]@{
+            Version = $m.Groups['Version'].Value
+            Body    = $m.Groups['Body'].Value.Trim()
+        }
+    }
+    return $sections
+}
+
 function Update-OneFile {
     param(
         [string]$Path,
@@ -449,15 +471,34 @@ if ($Mode -eq 'Notes') {
 
     if ($ForVersion) {
         if (-not $Version) { throw "Notes -ForVersion requires -Version." }
-        # Find "## [vTag](...) -- DATE" -- the heading pattern Promote writes.
-        $escaped = [regex]::Escape($Version)
-        $pattern = "(?ms)^##\s+\[" + $escaped + "\][^\n]*\n(.*?)(?=^---\s*$|^##\s+|\z)"
-        $m = [regex]::Match($content, $pattern)
-        if (-not $m.Success) {
+
+        $sections = @(Get-VersionSections -Content $content)
+        $startIdx = -1
+        for ($i = 0; $i -lt $sections.Count; $i++) {
+            if ($sections[$i].Version -eq $Version) {
+                $startIdx = $i
+                break
+            }
+        }
+        if ($startIdx -lt 0) {
             Write-Error "No section found for $Version in CHANGELOG.md."
             exit 1
         }
-        Write-Output $m.Groups[1].Value.Trim()
+
+        $selected = @()
+        if ($sections[$startIdx].Body) { $selected += $sections[$startIdx].Body }
+
+        if (-not (Test-IsPrereleaseVersion -Version $Version)) {
+            for ($i = $startIdx + 1; $i -lt $sections.Count; $i++) {
+                $section = $sections[$i]
+                if (-not (Test-IsPrereleaseVersion -Version $section.Version)) { break }
+                if ($section.Body) {
+                    $selected += "## $($section.Version)`n`n$($section.Body)"
+                }
+            }
+        }
+
+        Write-Output (($selected -join "`n`n").Trim())
         return
     }
 

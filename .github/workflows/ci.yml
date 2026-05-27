@@ -29,5 +29,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
+      - name: Test changelog release notes
+        shell: pwsh
+        run: ./.github/scripts/Test-UpdateChangelogNotes.ps1
       - name: Run actionlint
         uses: raven-actions/actionlint@v2
