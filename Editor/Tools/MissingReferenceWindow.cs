@@ -25,6 +25,7 @@ namespace UmeVrcfQol.Tools {
         [SerializeField] private bool _shouldDismissOnClose;
         [SerializeField] private bool _autoShow;
         private Vector2 _scroll;
+        private double _nextAnimatedRepaint;
 
         // ------ Open variants ----------------------------------------------
 
@@ -58,6 +59,12 @@ namespace UmeVrcfQol.Tools {
             if (_missing == null || _missing.Count == 0) {
                 _missing = MissingReferenceWarningTool.Scan();
             }
+            EditorApplication.update -= RepaintAnimatedChrome;
+            EditorApplication.update += RepaintAnimatedChrome;
+        }
+
+        private void OnDisable() {
+            EditorApplication.update -= RepaintAnimatedChrome;
         }
 
         private void OnDestroy() {
@@ -66,15 +73,23 @@ namespace UmeVrcfQol.Tools {
             }
         }
 
+        private void RepaintAnimatedChrome() {
+            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
+        }
+
         // ------ GUI ---------------------------------------------------------
 
         private void OnGUI() {
             using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
-            DrawHeader();
-            DrawDivider();
-            DrawList();
-            DrawDivider();
-            DrawFooter();
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
+                WkStyles.TitleBar("Missing References");
+                WkStyles.AnimatedAccentLine();
+                DrawHeader();
+                DrawDivider();
+                DrawList();
+                DrawDivider();
+                DrawFooter();
+            }
         }
 
         private void DrawHeader() {
@@ -139,11 +154,12 @@ namespace UmeVrcfQol.Tools {
 
         private void DrawFooter() {
             using (new EditorGUILayout.HorizontalScope()) {
+                WkStyles.BrandFooter();
+                GUILayout.FlexibleSpace();
                 if (GUILayout.Button(new GUIContent("Re-scan", "Walk the scenes again and refresh the list."),
                         GUILayout.Height(22), GUILayout.Width(100))) {
                     _missing = MissingReferenceWarningTool.Scan();
                 }
-                GUILayout.FlexibleSpace();
                 string closeLabel = _shouldDismissOnClose ? "Dismiss" : "Close";
                 if (GUILayout.Button(new GUIContent(closeLabel,
                         _shouldDismissOnClose

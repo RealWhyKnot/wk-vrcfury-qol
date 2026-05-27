@@ -41,6 +41,12 @@ namespace UmeVrcfQol.Internal {
         /// <summary>When true (default), a divider + footer row renders below the body.</summary>
         protected virtual bool ShowFooter => true;
 
+        /// <summary>When true (default), the WhyKnot brand signature renders at the bottom.</summary>
+        protected virtual bool ShowBrandFooter => true;
+
+        /// <summary>When true (default), title chrome uses a subtle animated accent line.</summary>
+        protected virtual bool AnimateChrome => true;
+
         /// <summary>Subclass-supplied window body. Called inside the theme scope.</summary>
         protected abstract void OnBodyGUI();
 
@@ -49,8 +55,9 @@ namespace UmeVrcfQol.Internal {
         /// Close button so every window has a consistent exit affordance.
         /// </summary>
         protected virtual void OnFooterGUI() {
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Close", GUILayout.Height(22), GUILayout.Width(100))) {
+            if (GUILayout.Button(
+                    new GUIContent("Close", "Close this window."),
+                    GUILayout.Height(22), GUILayout.Width(100))) {
                 Close();
             }
         }
@@ -58,26 +65,52 @@ namespace UmeVrcfQol.Internal {
         protected virtual void OnEnable() {
             titleContent = new GUIContent(Title);
             minSize = InitialMinSize;
+            EditorApplication.update -= RepaintAnimatedChrome;
+            if (AnimateChrome) EditorApplication.update += RepaintAnimatedChrome;
+        }
+
+        protected virtual void OnDisable() {
+            EditorApplication.update -= RepaintAnimatedChrome;
+        }
+
+        private double _nextAnimatedRepaint;
+        private void RepaintAnimatedChrome() {
+            if (!AnimateChrome) return;
+            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
         }
 
         private Vector2 _scroll;
 
-        private void OnGUI() {
+        protected virtual void OnGUI() {
             using (WkStyles.Scope(Theme)) {
-                WkStyles.TitleBar(Title, HelpUrl);
-                WkStyles.Divider();
-                if (ShowScrollView) {
-                    using (var s = new EditorGUILayout.ScrollViewScope(_scroll)) {
-                        _scroll = s.scrollPosition;
+                using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
+                    WkStyles.TitleBar(Title, HelpUrl);
+                    if (AnimateChrome) WkStyles.AnimatedAccentLine();
+                    else WkStyles.Divider();
+
+                    if (ShowScrollView) {
+                        using (var s = new EditorGUILayout.ScrollViewScope(
+                                _scroll, false, false,
+                                GUILayout.ExpandWidth(true),
+                                GUILayout.ExpandHeight(true))) {
+                            _scroll = s.scrollPosition;
+                            OnBodyGUI();
+                        }
+                    } else {
                         OnBodyGUI();
                     }
-                } else {
-                    OnBodyGUI();
-                }
-                if (ShowFooter) {
-                    WkStyles.Divider();
-                    using (new EditorGUILayout.HorizontalScope()) {
-                        OnFooterGUI();
+
+                    if (ShowFooter || ShowBrandFooter) {
+                        WkStyles.Divider();
+                        using (new EditorGUILayout.HorizontalScope()) {
+                            if (ShowBrandFooter) {
+                                WkStyles.BrandFooter();
+                            }
+                            if (ShowFooter) {
+                                GUILayout.FlexibleSpace();
+                                OnFooterGUI();
+                            }
+                        }
                     }
                 }
             }

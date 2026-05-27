@@ -123,6 +123,9 @@ namespace UmeVrcfQol.Internal.Styling {
         private static GUIStyle _code;
         private static GUIStyle _titleBar;
         private static GUIStyle _rowAlt;
+        private static GUIStyle _brandFooter;
+
+        public const string BrandFooterText = "Made with \u2665 by WhyKnot";
 
         public static GUIStyle SectionTitle =>
             _sectionTitle ??= new GUIStyle(EditorStyles.boldLabel) {
@@ -214,6 +217,18 @@ namespace UmeVrcfQol.Internal.Styling {
                 margin = new RectOffset(0, 0, 0, 0),
             };
 
+        /// <summary>Centred footer signature for tool windows.</summary>
+        public static GUIStyle BrandFooterStyle =>
+            _brandFooter ??= new GUIStyle(EditorStyles.centeredGreyMiniLabel) {
+                fontSize = 10,
+                fontStyle = FontStyle.Italic,
+                alignment = TextAnchor.MiddleCenter,
+                richText = true,
+                wordWrap = true,
+                padding = new RectOffset(4, 4, 2, 2),
+                margin = new RectOffset(0, 0, 0, 0),
+            };
+
         private static GUIStyle BuildMono() {
             // Consolas exists on Windows; Menlo on Mac; Courier New everywhere.
             // CreateDynamicFontFromOSFont returns null when the font isn't
@@ -291,6 +306,26 @@ namespace UmeVrcfQol.Internal.Styling {
         public static void Divider(float thickness = 1f) {
             var rect = EditorGUILayout.GetControlRect(false, thickness);
             EditorGUI.DrawRect(rect, ColorDivider);
+        }
+
+        /// <summary>Theme-coloured animation accent. Deterministic for tests when a time value is supplied.</summary>
+        public static Color AnimatedAccentColor(double timeSeconds) {
+            var pulse = 0.5f + 0.5f * Mathf.Sin((float)timeSeconds * 2.4f);
+            return Color.Lerp(ColorInfo, ColorAccent, pulse);
+        }
+
+        /// <summary>Subtle animated title underline for Editor windows.</summary>
+        public static void AnimatedAccentLine(float thickness = 2f, double? timeSeconds = null) {
+            var rect = EditorGUILayout.GetControlRect(false, Mathf.Max(1f, thickness), GUILayout.ExpandWidth(true));
+            EditorGUI.DrawRect(rect, ColorDividerSubtle);
+            if (rect.width <= 1f) return;
+
+            var now = timeSeconds ?? EditorApplication.timeSinceStartup;
+            var cycle = Mathf.Repeat((float)now, 2.8f) / 2.8f;
+            var gleamWidth = Mathf.Clamp(rect.width * 0.28f, 48f, 180f);
+            var x = Mathf.Lerp(rect.x - gleamWidth, rect.xMax, cycle);
+            var gleam = new Rect(x, rect.y, gleamWidth, rect.height);
+            EditorGUI.DrawRect(gleam, AnimatedAccentColor(now));
         }
 
         /// <summary>Lower-contrast divider for dense row lists; reads ColorDividerSubtle.</summary>
@@ -497,6 +532,33 @@ namespace UmeVrcfQol.Internal.Styling {
         /// <summary>NoticeKind-shaped <see cref="StatusBanner"/> overload that routes through the theme.</summary>
         public static void StatusBanner(string text, NoticeKind kind, GUIContent icon = null, float height = 22) {
             StatusBanner(text, ColorForKind(kind), icon, height);
+        }
+
+        /// <summary>Draw the standard WhyKnot footer with a gently animated heart.</summary>
+        public static void BrandFooter(double? timeSeconds = null) {
+            var now = timeSeconds ?? EditorApplication.timeSinceStartup;
+            var heartColor = ColorUtility.ToHtmlStringRGB(AnimatedAccentColor(now));
+            var text = "Made with <color=#" + heartColor + ">\u2665</color> by WhyKnot";
+            EditorGUILayout.LabelField(
+                new GUIContent(text, "Made with care by WhyKnot."),
+                BrandFooterStyle,
+                GUILayout.ExpandWidth(true),
+                GUILayout.MinHeight(18));
+        }
+
+        /// <summary>Draw the standard bottom chrome for hand-rolled windows.</summary>
+        public static void WindowFooter() {
+            Divider();
+            BrandFooter();
+        }
+
+        /// <summary>Throttle animated chrome repaints for windows that do not inherit WkToolWindow.</summary>
+        public static void RepaintAnimatedChrome(EditorWindow window, ref double nextRepaintTime) {
+            if (window == null) return;
+            var now = EditorApplication.timeSinceStartup;
+            if (now < nextRepaintTime) return;
+            nextRepaintTime = now + (1.0 / 30.0);
+            window.Repaint();
         }
 
         /// <summary>

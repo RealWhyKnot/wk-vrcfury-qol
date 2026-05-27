@@ -24,16 +24,20 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UmeVrcfQol.Internal;
 using UmeVrcfQol.Internal.Styling;
 
 namespace UmeVrcfQol.Internal.Logging {
 
-    public sealed class WkLogViewerWindow : EditorWindow {
+    public sealed class WkLogViewerWindow : WkToolWindow {
+
+        protected override string Title => "WhyKnot Logs";
+        protected override Vector2 InitialMinSize => new Vector2(540, 360);
+        protected override bool ShowScrollView => false;
 
         /// <summary>Open or focus the viewer. Call from downstream [MenuItem] hooks.</summary>
         public static WkLogViewerWindow Open() {
             var window = GetWindow<WkLogViewerWindow>(false, "WhyKnot Logs");
-            window.minSize = new Vector2(540, 360);
             window.Show();   // inherited EditorWindow.Show() to make the window visible
             return window;
         }
@@ -49,40 +53,22 @@ namespace UmeVrcfQol.Internal.Logging {
         private bool _showWarn = true;
         private bool _showError = true;
 
-        private void OnEnable() {
-            titleContent = new GUIContent("WhyKnot Logs");
+        protected override void OnEnable() {
+            base.OnEnable();
             RefreshLoggers();
             ReloadCurrentLog();
         }
 
-        private void OnDisable() {
+        protected override void OnDisable() {
+            base.OnDisable();
             DisposeWatcher();
         }
 
-        private void OnGUI() {
-            using (WkStyles.Scope(WkTheme.WhyKnot)) {
-                DrawTitleBar();
-                WkStyles.Divider();
-                DrawTabs();
-                DrawFilterRow();
-                WkStyles.Divider();
-                DrawBody();
-                WkStyles.Divider();
-                DrawFooter();
-            }
-        }
-
-        // ---- top ---------------------------------------------------
-
-        private void DrawTitleBar() {
-            using (new EditorGUILayout.HorizontalScope()) {
-                EditorGUILayout.LabelField("WhyKnot Logs", WkStyles.SectionTitle);
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Refresh", EditorStyles.miniButton, GUILayout.Width(80))) {
-                    RefreshLoggers();
-                    ReloadCurrentLog();
-                }
-            }
+        protected override void OnBodyGUI() {
+            DrawTabs();
+            DrawFilterRow();
+            WkStyles.Divider();
+            DrawBody();
         }
 
         private void DrawTabs() {
@@ -99,22 +85,41 @@ namespace UmeVrcfQol.Internal.Logging {
         }
 
         private void DrawFilterRow() {
+            var narrow = position.width < 640f;
             using (new EditorGUILayout.HorizontalScope()) {
+                if (GUILayout.Button(
+                        new GUIContent("Refresh", "Reload the registered loggers and current session log."),
+                        EditorStyles.miniButton, GUILayout.Width(72))) {
+                    RefreshLoggers();
+                    ReloadCurrentLog();
+                }
+                GUILayout.Space(6);
                 EditorGUILayout.LabelField("Show:", GUILayout.Width(40));
                 _showDebug = GUILayout.Toggle(_showDebug, "Debug", EditorStyles.miniButtonLeft, GUILayout.Width(70));
                 _showInfo  = GUILayout.Toggle(_showInfo,  "Info",  EditorStyles.miniButtonMid,  GUILayout.Width(70));
                 _showWarn  = GUILayout.Toggle(_showWarn,  "Warn",  EditorStyles.miniButtonMid,  GUILayout.Width(70));
                 _showError = GUILayout.Toggle(_showError, "Error", EditorStyles.miniButtonRight, GUILayout.Width(70));
-                GUILayout.Space(8);
-                EditorGUILayout.LabelField("Filter:", GUILayout.Width(50));
-                WkStyles.SearchField(ref _searchQuery, "Search", width: 0);
+                if (!narrow) {
+                    GUILayout.Space(8);
+                    EditorGUILayout.LabelField("Filter:", GUILayout.Width(50));
+                    WkStyles.SearchField(ref _searchQuery, "Search", width: 0);
+                }
+            }
+            if (narrow) {
+                using (new EditorGUILayout.HorizontalScope()) {
+                    EditorGUILayout.LabelField("Filter:", GUILayout.Width(50));
+                    WkStyles.SearchField(ref _searchQuery, "Search", width: 0);
+                }
             }
         }
 
         // ---- body --------------------------------------------------
 
         private void DrawBody() {
-            using (var s = new EditorGUILayout.ScrollViewScope(_scroll, GUILayout.ExpandHeight(true))) {
+            using (var s = new EditorGUILayout.ScrollViewScope(
+                    _scroll, false, false,
+                    GUILayout.ExpandWidth(true),
+                    GUILayout.ExpandHeight(true))) {
                 _scroll = s.scrollPosition;
                 if (string.IsNullOrEmpty(_logContent)) {
                     EditorGUILayout.LabelField("(empty)", WkStyles.Muted);
@@ -147,22 +152,21 @@ namespace UmeVrcfQol.Internal.Logging {
 
         // ---- footer ------------------------------------------------
 
-        private void DrawFooter() {
+        protected override void OnFooterGUI() {
             var logger = CurrentLogger();
-            using (new EditorGUILayout.HorizontalScope()) {
-                using (new EditorGUI.DisabledScope(logger == null)) {
-                    if (GUILayout.Button("Open in Explorer", GUILayout.Height(22))) {
-                        if (logger != null) EditorUtility.RevealInFinder(logger.LogFilePath);
-                    }
-                    if (GUILayout.Button("Open Log Folder", GUILayout.Height(22))) {
-                        if (logger != null) EditorUtility.RevealInFinder(logger.LogDirectory);
-                    }
+            using (new EditorGUI.DisabledScope(logger == null)) {
+                if (GUILayout.Button(
+                        new GUIContent("Open in Explorer", "Reveal the current log file."),
+                        GUILayout.Height(22), GUILayout.Width(126))) {
+                    if (logger != null) EditorUtility.RevealInFinder(logger.LogFilePath);
                 }
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Close", GUILayout.Height(22), GUILayout.Width(100))) {
-                    Close();
+                if (GUILayout.Button(
+                        new GUIContent("Open Log Folder", "Reveal the folder containing retained log sessions."),
+                        GUILayout.Height(22), GUILayout.Width(126))) {
+                    if (logger != null) EditorUtility.RevealInFinder(logger.LogDirectory);
                 }
             }
+            base.OnFooterGUI();
         }
 
         // ---- data -------------------------------------------------

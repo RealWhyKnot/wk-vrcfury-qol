@@ -217,6 +217,8 @@ namespace UmeVrcfQol.Tools {
         private GameObject _source;
         private GameObject _destination;
         private MoveVrcfComponentsTool.Mode _mode = MoveVrcfComponentsTool.Mode.WholeComponents;
+        private Vector2 _pageScroll;
+        private double _nextAnimatedRepaint;
 
         internal static void Show(GameObject source) {
             var w = CreateInstance<MoveVrcfComponentsWindow>();
@@ -230,74 +232,99 @@ namespace UmeVrcfQol.Tools {
             w.ShowUtility();
         }
 
+        private void OnEnable() {
+            EditorApplication.update -= RepaintAnimatedChrome;
+            EditorApplication.update += RepaintAnimatedChrome;
+        }
+
+        private void OnDisable() {
+            EditorApplication.update -= RepaintAnimatedChrome;
+        }
+
+        private void RepaintAnimatedChrome() {
+            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
+        }
+
         private void OnGUI() {
             using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
-            if (_source == null) {
-                EditorGUILayout.HelpBox("Source GameObject was deleted. Close this window.", MessageType.Error);
-                if (GUILayout.Button(new GUIContent("Close", "Close this window."))) Close();
-                return;
-            }
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
+                WkStyles.TitleBar("Move VRCFury Components");
+                WkStyles.AnimatedAccentLine();
 
-            EditorGUILayout.HelpBox(
-                "Move every VRCFury component from the source GameObject to one destination GameObject. The operation is one Undo step.",
-                MessageType.Info);
+                using (var s = new EditorGUILayout.ScrollViewScope(
+                        _pageScroll, false, false,
+                        GUILayout.ExpandWidth(true),
+                        GUILayout.ExpandHeight(true))) {
+                    _pageScroll = s.scrollPosition;
+                    if (_source == null) {
+                        EditorGUILayout.HelpBox("Source GameObject was deleted. Close this window.", MessageType.Error);
+                        if (GUILayout.Button(new GUIContent("Close", "Close this window."))) Close();
+                    } else {
+                        EditorGUILayout.HelpBox(
+                            "Move every VRCFury component from the source GameObject to one destination GameObject. The operation is one Undo step.",
+                            MessageType.Info);
 
-            EditorGUILayout.LabelField(
-                new GUIContent("Source", "The GameObject currently holding the VRCFury components."),
-                new GUIContent(PathUtility.GetGameObjectPath(_source)));
+                        EditorGUILayout.LabelField(
+                            new GUIContent("Source", "The GameObject currently holding the VRCFury components."),
+                            new GUIContent(PathUtility.GetGameObjectPath(_source)));
 
-            using (new EditorGUI.DisabledScope(false)) {
-                _destination = (GameObject)EditorGUILayout.ObjectField(
-                    new GUIContent("Destination", "Drop the GameObject that should receive the VRCFury components."),
-                    _destination, typeof(GameObject), allowSceneObjects: true);
-            }
+                        using (new EditorGUI.DisabledScope(false)) {
+                            _destination = (GameObject)EditorGUILayout.ObjectField(
+                                new GUIContent("Destination", "Drop the GameObject that should receive the VRCFury components."),
+                                _destination, typeof(GameObject), allowSceneObjects: true);
+                        }
 
-            EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("Mode", EditorStyles.boldLabel);
+                        EditorGUILayout.Space(4);
+                        EditorGUILayout.LabelField("Mode", EditorStyles.boldLabel);
 
-            bool mergeAvailable = MoveVrcfComponentsTool.MergeModeAvailable();
+                        bool mergeAvailable = MoveVrcfComponentsTool.MergeModeAvailable();
 
-            // Two radio rows. We use Toggle() with EditorStyles.radioButton so
-            // the layout is compact and IMGUI-native.
-            bool whole = _mode == MoveVrcfComponentsTool.Mode.WholeComponents;
-            bool newWhole = EditorGUILayout.ToggleLeft(
-                new GUIContent(
-                    "Move whole components",
-                    "Recommended. Each VRCFury component is recreated on the destination as its own component, preserving the original shape exactly."),
-                whole);
-            if (newWhole && !whole) _mode = MoveVrcfComponentsTool.Mode.WholeComponents;
+                        // Two radio rows. We use Toggle() with EditorStyles.radioButton so
+                        // the layout is compact and IMGUI-native.
+                        bool whole = _mode == MoveVrcfComponentsTool.Mode.WholeComponents;
+                        bool newWhole = EditorGUILayout.ToggleLeft(
+                            new GUIContent(
+                                "Move whole components",
+                                "Recommended. Each VRCFury component is recreated on the destination as its own component, preserving the original shape exactly."),
+                            whole);
+                        if (newWhole && !whole) _mode = MoveVrcfComponentsTool.Mode.WholeComponents;
 
-            bool merge = _mode == MoveVrcfComponentsTool.Mode.MergeIntoOne;
-            using (new EditorGUI.DisabledScope(!mergeAvailable)) {
-                bool newMerge = EditorGUILayout.ToggleLeft(
-                    new GUIContent(
-                        "Merge into one component" + (mergeAvailable ? "" : "  (unsupported on this VRCFury version)"),
-                        "Advanced. Append all source features into a single VRCFury component on the destination using the legacy config.features list."),
-                    merge);
-                if (newMerge && !merge && mergeAvailable) _mode = MoveVrcfComponentsTool.Mode.MergeIntoOne;
-            }
-            if (!mergeAvailable && _mode == MoveVrcfComponentsTool.Mode.MergeIntoOne) {
-                _mode = MoveVrcfComponentsTool.Mode.WholeComponents;
-            }
+                        bool merge = _mode == MoveVrcfComponentsTool.Mode.MergeIntoOne;
+                        using (new EditorGUI.DisabledScope(!mergeAvailable)) {
+                            bool newMerge = EditorGUILayout.ToggleLeft(
+                                new GUIContent(
+                                    "Merge into one component" + (mergeAvailable ? "" : "  (unsupported on this VRCFury version)"),
+                                    "Advanced. Append all source features into a single VRCFury component on the destination using the legacy config.features list."),
+                                merge);
+                            if (newMerge && !merge && mergeAvailable) _mode = MoveVrcfComponentsTool.Mode.MergeIntoOne;
+                        }
+                        if (!mergeAvailable && _mode == MoveVrcfComponentsTool.Mode.MergeIntoOne) {
+                            _mode = MoveVrcfComponentsTool.Mode.WholeComponents;
+                        }
 
-            EditorGUILayout.Space(8);
+                        EditorGUILayout.Space(8);
 
-            string disabledReason = ValidationError();
-            if (disabledReason != null) {
-                EditorGUILayout.HelpBox(disabledReason, MessageType.Info);
-            }
+                        string disabledReason = ValidationError();
+                        if (disabledReason != null) {
+                            EditorGUILayout.HelpBox(disabledReason, MessageType.Info);
+                        }
 
-            using (new EditorGUILayout.HorizontalScope()) {
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button(new GUIContent("Cancel", "Close without moving anything."), GUILayout.Width(80))) {
-                    Close();
-                }
-                using (new EditorGUI.DisabledScope(disabledReason != null)) {
-                    if (GUILayout.Button(new GUIContent("Move components", "Move the source VRCFury components to the destination."),
-                            GUILayout.Width(140))) {
-                        DoMove();
+                        using (new EditorGUILayout.HorizontalScope()) {
+                            GUILayout.FlexibleSpace();
+                            if (GUILayout.Button(new GUIContent("Cancel", "Close without moving anything."), GUILayout.Width(80))) {
+                                Close();
+                            }
+                            using (new EditorGUI.DisabledScope(disabledReason != null)) {
+                                if (GUILayout.Button(new GUIContent("Move components", "Move the source VRCFury components to the destination."),
+                                        GUILayout.Width(140))) {
+                                    DoMove();
+                                }
+                            }
+                        }
                     }
                 }
+
+                WkStyles.WindowFooter();
             }
         }
 

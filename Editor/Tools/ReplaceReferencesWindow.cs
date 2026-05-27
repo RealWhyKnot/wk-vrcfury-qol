@@ -41,6 +41,8 @@ namespace UmeVrcfQol.Tools {
 
         private Vector2 _rootsScroll;
         private Vector2 _groupsScroll;
+        private Vector2 _pageScroll;
+        private double _nextAnimatedRepaint;
 
         // ---------------- Public entry point ------------------------------
 
@@ -60,17 +62,43 @@ namespace UmeVrcfQol.Tools {
             w.Focus();
         }
 
+        private void OnEnable() {
+            EditorApplication.update -= RepaintAnimatedChrome;
+            EditorApplication.update += RepaintAnimatedChrome;
+        }
+
+        private void OnDisable() {
+            EditorApplication.update -= RepaintAnimatedChrome;
+        }
+
+        private void RepaintAnimatedChrome() {
+            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
+        }
+
         // ---------------- GUI ---------------------------------------------
 
         private void OnGUI() {
             using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
-            DrawIntro();
-            DrawSearchRoots();
-            EditorGUILayout.Space(4);
-            DrawDivider();
-            DrawGroups();
-            DrawDivider();
-            DrawApplyBar();
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
+                WkStyles.TitleBar("Replace References");
+                WkStyles.AnimatedAccentLine();
+
+                using (var s = new EditorGUILayout.ScrollViewScope(
+                        _pageScroll, false, false,
+                        GUILayout.ExpandWidth(true),
+                        GUILayout.ExpandHeight(true))) {
+                    _pageScroll = s.scrollPosition;
+                    DrawIntro();
+                    DrawSearchRoots();
+                    EditorGUILayout.Space(4);
+                    DrawDivider();
+                    DrawGroups();
+                }
+
+                DrawDivider();
+                DrawApplyBar();
+                WkStyles.WindowFooter();
+            }
         }
 
         private static void DrawIntro() {

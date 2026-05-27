@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UmeVrcfQol.Internal.Styling;
 
 namespace UmeVrcfQol.Internal.HotReload {
 
@@ -26,6 +27,7 @@ namespace UmeVrcfQol.Internal.HotReload {
         }
 
         private Vector2 _scroll;
+        private Vector2 _bodyScroll;
 
         private void OnEnable() {
             // Keep the view fresh while it's visible. Hot-reload events
@@ -47,14 +49,25 @@ namespace UmeVrcfQol.Internal.HotReload {
         }
 
         private void OnGUI() {
-            EditorGUILayout.LabelField("Hot Reload Status", EditorStyles.boldLabel);
-            EditorGUILayout.Space();
+            using var _wkTheme = WkStyles.Scope(WkTheme.WhyKnot);
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
+                WkStyles.TitleBar("Hot Reload Status");
+                WkStyles.AnimatedAccentLine();
 
-            DrawSummary();
-            EditorGUILayout.Space();
-            DrawRecentEvents();
-            EditorGUILayout.Space();
-            DrawFooter();
+                using (var s = new EditorGUILayout.ScrollViewScope(
+                        _bodyScroll, false, false,
+                        GUILayout.ExpandWidth(true),
+                        GUILayout.ExpandHeight(true))) {
+                    _bodyScroll = s.scrollPosition;
+                    DrawSummary();
+                    EditorGUILayout.Space();
+                    DrawRecentEvents();
+                }
+
+                WkStyles.Divider();
+                DrawFooter();
+                WkStyles.BrandFooter();
+            }
         }
 
         private void DrawSummary() {
@@ -87,7 +100,9 @@ namespace UmeVrcfQol.Internal.HotReload {
             using (new EditorGUILayout.HorizontalScope()) {
                 var path = EditorHotReload.LogFilePath;
                 using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(path))) {
-                    if (GUILayout.Button("Open Log in Explorer", GUILayout.Height(22))) {
+                    if (GUILayout.Button(
+                            new GUIContent("Open Log in Explorer", "Reveal the current hot-reload log file."),
+                            GUILayout.Height(22))) {
                         EditorUtility.RevealInFinder(path);
                     }
                 }
