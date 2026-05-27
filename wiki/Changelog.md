@@ -11,6 +11,12 @@ The most recent release is at the top.
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.2](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.2) -- 2026-05-27
+
 ### Fixed
 - **hot-reload:** Watch only package root (2725f6b)
 
