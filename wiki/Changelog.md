@@ -11,7 +11,8 @@ The most recent release is at the top.
 
 ## Unreleased
 
-_No notable changes since the last release._
+### Fixed
+- **hot-reload:** Watch only package root (2725f6b)
 
 ---
 
