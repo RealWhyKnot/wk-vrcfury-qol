@@ -34,7 +34,22 @@ namespace UmeVrcfQol.Internal.Settings {
     public static class WkSettingsProvider {
 
         public const string DefaultPath = "WhyKnot/Core";
-        public const string PrefsPackage = "dev.whyknot.core.settings";
+        public static readonly string PrefsPackage = ResolvePrefsPackage();
+
+        private static string ResolvePrefsPackage() {
+            try {
+                var assemblyName = typeof(WkSettingsProvider).Assembly.GetName().Name;
+                if (string.IsNullOrEmpty(assemblyName)) return "dev.whyknot.wk-vrcfury-qol.settings";
+                if (assemblyName.EndsWith(".HotReload.Editor", StringComparison.OrdinalIgnoreCase)) {
+                    assemblyName = assemblyName.Substring(0, assemblyName.Length - ".HotReload.Editor".Length);
+                } else if (assemblyName.EndsWith(".Editor", StringComparison.OrdinalIgnoreCase)) {
+                    assemblyName = assemblyName.Substring(0, assemblyName.Length - ".Editor".Length);
+                }
+                return assemblyName + ".settings";
+            } catch {
+                return "dev.whyknot.wk-vrcfury-qol.settings";
+            }
+        }
 
         /// <summary>
         /// Build a SettingsProvider that can be returned from a

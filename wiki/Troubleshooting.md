@@ -62,9 +62,10 @@ If you need merge behaviour and the field has been renamed, please [file a `vrcf
 
 ## Hot-reload log not updating
 
-`<ProjectRoot>/Logs/VrcfQolHotReload.log` is written by `VrcfQolHotReload.cs`. If the file isn't there or isn't growing on script saves:
+Hot-reload logs are written under `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/`. If the current `session-*.log` is not growing when you edit this package's own files:
 
-- **First-time install.** Focus Unity once so it compiles `VrcfQolHotReload.cs` itself; from then on the watcher runs.
+- **First-time install.** Focus Unity once so it compiles the package; from then on the watcher runs.
+- **Wrong file changed.** The watcher is package-scoped. Edits to unrelated `Assets/` scripts or third-party packages intentionally do not trigger it.
 - **`FileSystemWatcher` failed to start.** This shows up as an exception in the Unity console at editor startup. Causes: anti-virus, sandboxing, or unusual filesystem types. The tool degrades gracefully -- Unity's built-in focus-based refresh still works, the log just doesn't get written.
 
 ## Undo doesn't revert everything

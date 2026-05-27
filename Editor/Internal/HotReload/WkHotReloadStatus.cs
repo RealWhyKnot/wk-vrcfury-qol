@@ -3,10 +3,8 @@
 // EditorWindow exposing the live state of EditorHotReload: refresh
 // counter, last compile result, last 50 file events, log file path,
 // and an "Open in Explorer" jump. Built in IMGUI deliberately -- the
-// HotReload assembly has no reference to wk-core's main Editor
-// assembly (that isolation is the whole point of the separate
-// asmdef), so we can't reach for WkStyles primitives here. Keep this
-// view dependency-free.
+// hot-reload view stays dependency-light so it remains useful while
+// debugging editor startup and refresh issues.
 
 using System;
 using System.Collections.Generic;
@@ -94,10 +92,10 @@ namespace UmeVrcfQol.Internal.HotReload {
                     }
                 }
                 GUILayout.FlexibleSpace();
-                var enabled = EditorPrefs.GetBool("dev.whyknot.core.settings.hot-reload-enabled", true);
+                var enabled = EditorPrefs.GetBool(EditorHotReload.HotReloadEnabledPrefsKey, true);
                 var next = GUILayout.Toggle(enabled, "Watcher enabled (next launch)", GUILayout.Height(22));
                 if (next != enabled) {
-                    EditorPrefs.SetBool("dev.whyknot.core.settings.hot-reload-enabled", next);
+                    EditorPrefs.SetBool(EditorHotReload.HotReloadEnabledPrefsKey, next);
                 }
             }
         }

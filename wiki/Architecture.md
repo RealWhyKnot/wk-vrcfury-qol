@@ -4,7 +4,7 @@ Three pieces:
 
 1. **`VrcfQol.cs`** -- the framework: reflection cache, registration API, helpers.
 2. **`VrcfQolInspectorOverlay.cs`** -- UIElements overlay that injects inline buttons and banners into VRCFury inspectors.
-3. **`VrcfQolHotReload.cs`** -- background watcher that triggers `AssetDatabase.Refresh()` on script changes when Unity is unfocused, plus a compile log.
+3. **Hot reload** -- package-scoped background watcher that triggers `AssetDatabase.Refresh()` on this package's source changes when Unity is unfocused, plus a compile log.
 
 Everything else under `Editor/Tools/` is a tool -- usually a single `[InitializeOnLoad]` static class that registers itself with `VrcfQol`.
 
@@ -82,8 +82,8 @@ The Auto-Global-Parameter sync is the one exception: it polls every 500 ms and w
 
 ## Hot reload
 
-`VrcfQolHotReload.cs` runs a `FileSystemWatcher` over `Assets/**/*.cs`, debounces events for 0.4 s, and calls `AssetDatabase.Refresh()` if Unity isn't already compiling. It also subscribes to `CompilationPipeline.assemblyCompilationFinished` and writes one line per assembly + one line per error to `<ProjectRoot>/Logs/VrcfQolHotReload.log`, with timestamp prefixes.
+The hot-reload layer runs a `FileSystemWatcher` over this package's own source root, debounces events for 0.4 s, and calls `AssetDatabase.Refresh()` if Unity isn't already compiling. It does not watch unrelated `Assets/` or third-party `Packages/` content. It also subscribes to `CompilationPipeline.assemblyCompilationFinished` and writes one line per assembly plus one line per error to `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/session-*.log`.
 
-The log rolls over at 512 KB -- old copy kept as `.log.old`. Tail it from a terminal to watch compiles in real time. Errors come out formatted as `[Error] <file>(<line>,<col>): <message>` so they're easy to grep.
+The watcher keeps the most recent three session logs. Tail the current session from a terminal to watch compiles in real time. Errors include the file path and line/column so they're easy to grep.
 
 If `FileSystemWatcher` fails to start (sandboxing, permissions, etc.), the tool logs the failure and silently degrades -- Unity's normal focus-based refresh still works.

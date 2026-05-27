@@ -1,30 +1,21 @@
 // EditorHotReload.cs
 //
-// Lives in its OWN assembly (`dev.whyknot.core.HotReload.Editor`) with
-// zero references to the rest of wk-core. That isolation is the whole
-// point: if the main `dev.whyknot.core.Editor` assembly fails to
-// compile, HotReload still loads, the watcher still fires
-// AssetDatabase.Refresh() on each save, and the per-session log file
-// still captures the compile errors so the next iteration can read
-// them without the user copy-pasting console output.
+// Lives in a small hot-reload layer that avoids depending on package tool
+// code. If the main tool code fails to compile, HotReload can still record
+// the compile errors so the next iteration can read them without the user
+// copy-pasting console output.
 //
 // All diagnostic output goes to:
-//   %LocalAppData%/WhyKnot/Logs/dev.whyknot.core.hotreload/session-<timestamp>.log
+//   %LocalAppData%/WhyKnot/Logs/<assembly-name>.hotreload/session-<timestamp>.log
 //
 // Same 3-session retention as the main WkLogger sessions, but this is
-// a separate directory -- HotReload is wk-core's internal tooling, not
-// a "package log" in the user-facing sense. With three packages keeping
-// 3 logs each plus this HotReload group, the user has at most 12 log
-// files system-wide.
+// a separate directory from the main package log.
 //
 // Behaviour:
-//   * Two FileSystemWatchers (recursive) cover both roots Unity
-//     treats as live source: `<project>/Assets/` (the legacy
-//     drop-scripts-anywhere workflow) and `<project>/Packages/` (where
-//     local-deployed packages like dev.whyknot.* iterate). Either watcher
-//     flipping the flag triggers a refresh. Library/PackageCache/ is
-//     deliberately not watched because read-only VPM installs don't
-//     iterate and the cache churns on its own.
+//   * One recursive FileSystemWatcher covers this package's own root only
+//     (normally `<project>/Packages/dev.whyknot.wk-vrcfury-qol/`). Edits to
+//     other Assets/ or Packages/ content must not cause this package to
+//     reload the project.
 //   * Tracked extensions: .cs / .asmdef / .asmref for script reload,
 //     .shader / .compute / .cginc / .hlsl for shader reload.
 //   * EditorApplication.update debounces the flag (~0.4 s) and then
@@ -61,20 +52,34 @@ namespace UmeVrcfQol.Internal.HotReload {
         private const double DebounceSeconds = 0.4;
         private const int MaxSessions = 3;
         // Derived once from the executing assembly so a copy of this file
-        // bundled into a downstream package writes to a per-package log
-        // directory automatically. The wk-core copy logs under
-        // "WhyKnot/Logs/dev.whyknot.core.hotreload"; a copy inside
-        // dev.whyknot.avatar-qol logs under that package's name instead.
-        // No need to rewrite the constant when the sync script copies
-        // this file into a downstream.
-        private static readonly string LogSubpath = "WhyKnot/Logs/" + ResolveAsmIdentity() + ".hotreload";
+        // bundled into a downstream package writes to a per-assembly log
+        // directory automatically.
+        private static readonly string AssemblyIdentity = ResolveAsmIdentity();
+        private static readonly string PackageId = ResolvePackageIdFromAssemblyName(AssemblyIdentity);
+        private static readonly string LogSubpath = "WhyKnot/Logs/" + AssemblyIdentity + ".hotreload";
+        internal static readonly string HotReloadEnabledPrefsKey = ResolveHotReloadEnabledPrefsKey(AssemblyIdentity);
 
         private static string ResolveAsmIdentity() {
             try {
                 return typeof(EditorHotReload).Assembly.GetName().Name;
             } catch {
-                return "dev.whyknot.core";
+                return "dev.whyknot.wk-vrcfury-qol.Editor";
             }
+        }
+
+        internal static string ResolvePackageIdFromAssemblyName(string assemblyName) {
+            if (string.IsNullOrEmpty(assemblyName)) return "dev.whyknot.wk-vrcfury-qol";
+            if (assemblyName.EndsWith(".HotReload.Editor", StringComparison.OrdinalIgnoreCase)) {
+                return assemblyName.Substring(0, assemblyName.Length - ".HotReload.Editor".Length);
+            }
+            if (assemblyName.EndsWith(".Editor", StringComparison.OrdinalIgnoreCase)) {
+                return assemblyName.Substring(0, assemblyName.Length - ".Editor".Length);
+            }
+            return assemblyName;
+        }
+
+        internal static string ResolveHotReloadEnabledPrefsKey(string assemblyName) {
+            return ResolvePackageIdFromAssemblyName(assemblyName) + ".settings.hot-reload-enabled";
         }
 
         private const int WatcherBufferSize = 64 * 1024;   // up from FileSystemWatcher's 8 KB default
@@ -137,29 +142,17 @@ namespace UmeVrcfQol.Internal.HotReload {
                 return;
             }
 
-            StartWatcher(dataPath, "Assets");
-
-            // Sibling Packages/ directory: where local-deployed packages
-            // (e.g. scripts/deploy-to-local.ps1 mirroring into an avatar
-            // project) actually land. Without this watcher, iterating on a
-            // deployed package only refreshes when the user clicks Unity
-            // back into focus -- which defeats the point of the local-deploy
-            // workflow.
-            try {
-                var projectRoot = Path.GetDirectoryName(dataPath);
-                if (!string.IsNullOrEmpty(projectRoot)) {
-                    var packagesPath = Path.Combine(projectRoot, "Packages");
-                    if (Directory.Exists(packagesPath)) StartWatcher(packagesPath, "Packages");
-                    else LogDebug($"[Watcher] No Packages directory at {packagesPath}; skipped.");
-                }
-            } catch (Exception ex) {
-                LogException(ex, "[Watcher] Failed to derive Packages path");
+            var watchRoot = ResolvePackageWatchRoot(dataPath);
+            if (string.IsNullOrEmpty(watchRoot)) {
+                LogError($"[Watcher] Could not resolve package root for {PackageId}; watcher not started.");
+            } else {
+                StartWatcher(watchRoot, PackageId);
             }
 
             // Allow disabling via WkEditorPrefs-style toggle so the
             // WkSettingsProvider's "Enable hot-reload watcher" toggle has
             // an effect on next Editor startup.
-            if (!UnityEditor.EditorPrefs.GetBool("dev.whyknot.core.settings.hot-reload-enabled", true)) {
+            if (!UnityEditor.EditorPrefs.GetBool(HotReloadEnabledPrefsKey, true)) {
                 LogInfo("Hot-reload watcher disabled via settings; tearing down watchers.");
                 foreach (var w in _watchers) {
                     try { w.EnableRaisingEvents = false; w.Dispose(); } catch { /* ignore */ }
@@ -208,6 +201,55 @@ namespace UmeVrcfQol.Internal.HotReload {
             } catch (Exception ex) {
                 LogException(ex, $"[Watcher] Failed to start on {root}");
             }
+        }
+
+        private static string ResolvePackageWatchRoot(string dataPath) {
+            try {
+                var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(EditorHotReload).Assembly);
+                if (info != null) {
+                    if (!string.IsNullOrEmpty(info.resolvedPath) && Directory.Exists(info.resolvedPath)) {
+                        return info.resolvedPath;
+                    }
+                    var fromAssetPath = UnityAssetPathToOsPath(dataPath, info.assetPath);
+                    if (!string.IsNullOrEmpty(fromAssetPath) && Directory.Exists(fromAssetPath)) {
+                        return fromAssetPath;
+                    }
+                }
+            } catch (Exception ex) {
+                LogException(ex, "[Watcher] PackageInfo lookup failed");
+            }
+
+            var embedded = EmbeddedPackagePath(dataPath, PackageId);
+            if (!string.IsNullOrEmpty(embedded) && Directory.Exists(embedded)) return embedded;
+
+            return null;
+        }
+
+        internal static string EmbeddedPackagePath(string dataPath, string packageId) {
+            if (string.IsNullOrEmpty(dataPath) || string.IsNullOrEmpty(packageId)) return null;
+            var projectRoot = Path.GetDirectoryName(dataPath);
+            if (string.IsNullOrEmpty(projectRoot)) return null;
+            return Path.Combine(projectRoot, "Packages", packageId);
+        }
+
+        private static string UnityAssetPathToOsPath(string dataPath, string assetPath) {
+            if (string.IsNullOrEmpty(dataPath) || string.IsNullOrEmpty(assetPath)) return null;
+            assetPath = assetPath.Replace('\\', '/').TrimEnd('/');
+            if (assetPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase)) {
+                var projectRoot = Path.GetDirectoryName(dataPath);
+                if (string.IsNullOrEmpty(projectRoot)) return null;
+                var suffix = assetPath.Length > "Assets".Length
+                    ? assetPath.Substring("Assets".Length).TrimStart('/')
+                    : "";
+                return Path.Combine(projectRoot, "Assets", suffix.Replace('/', Path.DirectorySeparatorChar));
+            }
+            if (assetPath.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)) {
+                var projectRoot = Path.GetDirectoryName(dataPath);
+                if (string.IsNullOrEmpty(projectRoot)) return null;
+                var suffix = assetPath.Substring("Packages/".Length).Replace('/', Path.DirectorySeparatorChar);
+                return Path.Combine(projectRoot, "Packages", suffix);
+            }
+            return null;
         }
 
         private static void OnWatcherError(FileSystemWatcher offender, ErrorEventArgs args) {
@@ -402,22 +444,22 @@ namespace UmeVrcfQol.Internal.HotReload {
         }
 
         // Pick a Unity-path "scan root" for finding shaders that depend on a
-        // changed include file. For files under Packages/<id>/... that's the
-        // package root -- the iteration loop the local deploy script feeds.
-        // Assets/ files are deliberately skipped: a stray .cginc edit in an
-        // avatar project could otherwise trigger reimport of every third-party
-        // shader (Poiyomi, lilToon, etc.) and stall the editor. Users iterating
-        // on Assets-side shaders can fall back to the per-tool "Reimport"
-        // button or right-click reimport in the Project window.
+        // changed include file. Only this package's root expands; unrelated
+        // Assets/ or Packages/ changes must not trigger work from this watcher.
         internal static string ResolveReimportRoot(string unityPath) {
             if (string.IsNullOrEmpty(unityPath)) return null;
             unityPath = unityPath.Replace('\\', '/');
-            if (unityPath.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase)) {
-                int firstSlash = unityPath.IndexOf('/', "Packages/".Length);
-                if (firstSlash > 0) return unityPath.Substring(0, firstSlash);
-                return "Packages";
-            }
-            return null;
+            return IsOwnPackageUnityPath(unityPath, PackageId)
+                ? "Packages/" + PackageId
+                : null;
+        }
+
+        internal static bool IsOwnPackageUnityPath(string unityPath, string packageId) {
+            if (string.IsNullOrEmpty(unityPath) || string.IsNullOrEmpty(packageId)) return false;
+            unityPath = unityPath.Replace('\\', '/').TrimEnd('/');
+            var root = "Packages/" + packageId;
+            return string.Equals(unityPath, root, StringComparison.OrdinalIgnoreCase)
+                || unityPath.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase);
         }
 
         // Convert a FileSystemWatcher OS path to the Unity asset path Unity's
@@ -464,7 +506,7 @@ namespace UmeVrcfQol.Internal.HotReload {
             }
         }
 
-        // ----- inline file logger (no dependency on the rest of wk-core) -
+        // ----- inline file logger ----------------------------------------
 
         private static void InitLogFile() {
             try {
@@ -492,13 +534,13 @@ namespace UmeVrcfQol.Internal.HotReload {
                 WriteHeader();
             } catch (Exception ex) {
                 _logPath = null;
-                UnityEngine.Debug.LogWarning($"[wk-core HotReload] Failed to init log file: {ex.Message}");
+                UnityEngine.Debug.LogWarning($"[VRCFury QoL HotReload] Failed to init log file: {ex.Message}");
             }
         }
 
         private static void WriteHeader() {
             WriteRaw("================================================================");
-            WriteRaw("WhyKnot Core HotReload (dev.whyknot.core.HotReload.Editor)");
+            WriteRaw($"WhyKnot HotReload ({AssemblyIdentity})");
             WriteRaw($"Session started: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
             WriteRaw($"Unity:    {Application.unityVersion}");
             WriteRaw($"Platform: {Application.platform} ({SystemInfo.operatingSystem})");
@@ -515,11 +557,11 @@ namespace UmeVrcfQol.Internal.HotReload {
             WriteLevel("WARN ", msg);
             // Surface in Unity Console too -- the watcher is plumbing the
             // user might not think to grep the log file for.
-            UnityEngine.Debug.LogWarning($"[wk-core HotReload] {msg}");
+            UnityEngine.Debug.LogWarning($"[VRCFury QoL HotReload] {msg}");
         }
         private static void LogError(string msg) {
             WriteLevel("ERROR", msg);
-            UnityEngine.Debug.LogError($"[wk-core HotReload] {msg}");
+            UnityEngine.Debug.LogError($"[VRCFury QoL HotReload] {msg}");
         }
         private static void LogException(Exception ex, string context = null) {
             if (ex == null) return;

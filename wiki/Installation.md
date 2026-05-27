@@ -38,15 +38,15 @@ ln -s /path/to/wk-vrcfury-qol/Editor /path/to/YourProject/Assets/VrcfQol
 
 ## Hot-reload bootstrap
 
-After installing for the first time, **focus Unity once** so it compiles the new scripts. From then on `VrcfQolHotReload.cs` watches `Assets/**/*.cs` and triggers `AssetDatabase.Refresh()` whenever a file changes -- even when Unity isn't focused.
+After installing for the first time, **focus Unity once** so it compiles the new scripts. From then on the hot-reload watcher watches this package's own source files and triggers `AssetDatabase.Refresh()` whenever one changes -- even when Unity isn't focused. It deliberately does not watch unrelated `Assets/` or third-party package files.
 
-The hot-reload tool also writes a per-assembly compile log to `<ProjectRoot>/Logs/VrcfQolHotReload.log` (rolls over at 512 KB; old copy kept as `.log.old`). Tail it to watch compiles in real time:
+The hot-reload tool also writes per-session compile logs under `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/`. Tail the current `session-*.log` to watch compiles in real time:
 
-```sh
-tail -f Logs/VrcfQolHotReload.log
+```powershell
+Get-Content "$env:LocalAppData\WhyKnot\Logs\dev.whyknot.wk-vrcfury-qol.Editor.hotreload\session-*.log" -Wait
 ```
 
-Errors come out as `[Error] <file>(<line>,<col>): <message>` so they're easy to grep.
+Compile errors include the file path and line/column so they're easy to grep.
 
 ## Compatibility
 

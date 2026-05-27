@@ -101,10 +101,10 @@ When the action lives inside a flipbook page, an inline *Copy to page* button ap
 
 Supported visual actions include object toggles, blendshapes, material swaps, material properties, animation clips, Poiyomi flipbook frames, UV tile rows, and scale actions. Nonvisual actions are skipped. If a Toggle contains a Flipbook Builder, Preview opens a page picker so you can preview one page at a time.
 
-## Hot Reload + Compile Log
+## Hot Reload + Logs
 
-**Where:** Always-on background tool; output at `<ProjectRoot>/Logs/VrcfQolHotReload.log`.
+**Where:** Always-on background tool; status at *Window -> WhyKnot -> VRCFury QoL -> Hot Reload Status*. Main package logs are under `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol/`; hot-reload sessions are under `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/`.
 
-**What it does:** A `FileSystemWatcher` on `Assets/**/*.cs` triggers `AssetDatabase.Refresh()` shortly after a script file changes -- so saving from an external editor (with Unity unfocused) still picks up the edit. Subscribes to `CompilationPipeline.assemblyCompilationFinished` and writes a one-line summary per assembly + one line per error to the log file. The log rolls over at 512 KB (old copy kept as `.log.old`). Errors come out as `[Error] <file>(<line>,<col>): <message>` so they're easy to grep.
+**What it does:** A `FileSystemWatcher` on this package's own source root triggers `AssetDatabase.Refresh()` shortly after a package file changes -- so saving from an external editor (with Unity unfocused) still picks up package edits. It does not watch the whole project. Subscribes to `CompilationPipeline.assemblyCompilationFinished` and writes a one-line summary per assembly plus one line per error to the hot-reload session log.
 
 Bootstrap: focus Unity once after the first install so it compiles the scripts. From then on the watcher runs whenever Unity is open.
