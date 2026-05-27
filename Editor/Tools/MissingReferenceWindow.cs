@@ -31,7 +31,7 @@ namespace UmeVrcfQol.Tools {
 
         internal static void OpenAuto(List<MissingReferenceWarningTool.MissingRef> missing) {
             var w = GetWindow<MissingReferenceWindow>(false, "Missing References", true);
-            w.titleContent = new GUIContent("WhyKnot - Missing VRCFury References");
+            w.titleContent = WkStyles.TitleContent("WhyKnot - Missing VRCFury References");
             w._missing = missing ?? new List<MissingReferenceWarningTool.MissingRef>();
             w._shouldDismissOnClose = true;
             w._autoShow = true;
@@ -41,7 +41,7 @@ namespace UmeVrcfQol.Tools {
 
         internal static void OpenManual(List<MissingReferenceWarningTool.MissingRef> missing) {
             var w = GetWindow<MissingReferenceWindow>(false, "Missing References", true);
-            w.titleContent = new GUIContent("WhyKnot - Missing VRCFury References");
+            w.titleContent = WkStyles.TitleContent("WhyKnot - Missing VRCFury References");
             w._missing = missing ?? new List<MissingReferenceWarningTool.MissingRef>();
             w._shouldDismissOnClose = false;
             w._autoShow = false;

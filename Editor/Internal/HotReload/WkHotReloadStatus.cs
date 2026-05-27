@@ -22,6 +22,7 @@ namespace UmeVrcfQol.Internal.HotReload {
         // for the same menu path when both downstreams are installed.
         public static void Open() {
             var w = GetWindow<WkHotReloadStatus>(false, "Hot Reload Status");
+            w.titleContent = WkStyles.TitleContent("Hot Reload Status");
             w.minSize = new Vector2(460, 360);
             w.Show();
         }

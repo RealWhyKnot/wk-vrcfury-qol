@@ -48,7 +48,7 @@ namespace UmeVrcfQol.Tools {
 
         internal static void Open(bool prefillFromSelection) {
             var w = GetWindow<ReplaceReferencesWindow>(false, "Replace References", true);
-            w.titleContent = new GUIContent("WhyKnot - Replace VRCFury References");
+            w.titleContent = WkStyles.TitleContent("WhyKnot - Replace VRCFury References");
             w.minSize = new Vector2(620, 460);
             if (prefillFromSelection) {
                 w._searchRoots = Selection.gameObjects

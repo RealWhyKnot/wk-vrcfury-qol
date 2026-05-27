@@ -124,8 +124,17 @@ namespace UmeVrcfQol.Internal.Styling {
         private static GUIStyle _titleBar;
         private static GUIStyle _rowAlt;
         private static GUIStyle _brandFooter;
+        private static Texture2D _brandLogo;
+        private static bool _brandLogoLoaded;
 
         public const string BrandFooterText = "Made with \u2665 by WhyKnot";
+        public const string BrandLogoAssetName = "WhyKnotLogo";
+
+        private static readonly string[] BrandLogoAssetPaths = {
+            "Packages/dev.whyknot.core/Editor/Assets/WhyKnotLogo.png",
+            "Packages/dev.whyknot.wk-vrc-qol/Editor/Internal/Assets/WhyKnotLogo.png",
+            "Packages/dev.whyknot.wk-vrcfury-qol/Editor/Internal/Assets/WhyKnotLogo.png",
+        };
 
         public static GUIStyle SectionTitle =>
             _sectionTitle ??= new GUIStyle(EditorStyles.boldLabel) {
@@ -228,6 +237,16 @@ namespace UmeVrcfQol.Internal.Styling {
                 padding = new RectOffset(4, 4, 2, 2),
                 margin = new RectOffset(0, 0, 0, 0),
             };
+
+        public static Texture2D BrandLogoTexture {
+            get {
+                if (!_brandLogoLoaded) {
+                    _brandLogo = LoadBrandLogoTexture();
+                    _brandLogoLoaded = true;
+                }
+                return _brandLogo;
+            }
+        }
 
         private static GUIStyle BuildMono() {
             // Consolas exists on Windows; Menlo on Mac; Courier New everywhere.
@@ -534,16 +553,67 @@ namespace UmeVrcfQol.Internal.Styling {
             StatusBanner(text, ColorForKind(kind), icon, height);
         }
 
+        public static GUIContent TitleContent(string title, string tooltip = null) {
+            return new GUIContent(title, BrandLogoTexture, tooltip ?? title);
+        }
+
+        public static bool BrandLogoMark(float width = 40f, float height = 22f, float alpha = 0.9f) {
+            if (BrandLogoTexture == null) return false;
+            var rect = GUILayoutUtility.GetRect(
+                width,
+                height,
+                GUILayout.Width(width),
+                GUILayout.Height(height),
+                GUILayout.ExpandWidth(false));
+            DrawBrandLogo(rect, alpha);
+            return true;
+        }
+
+        public static void DrawBrandLogo(Rect rect, float alpha = 1f) {
+            var texture = BrandLogoTexture;
+            if (texture == null || rect.width <= 1f || rect.height <= 1f) return;
+
+            var previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, previous.a * Mathf.Clamp01(alpha));
+            GUI.DrawTexture(rect, texture, ScaleMode.ScaleToFit, true);
+            GUI.color = previous;
+        }
+
+        private static Texture2D LoadBrandLogoTexture() {
+            foreach (var path in BrandLogoAssetPaths) {
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (texture != null) return texture;
+            }
+
+            var guids = AssetDatabase.FindAssets(BrandLogoAssetName + " t:Texture2D");
+            foreach (var guid in guids) {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (string.IsNullOrEmpty(path) || !path.EndsWith("/WhyKnotLogo.png", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (texture != null) return texture;
+            }
+
+            return null;
+        }
+
         /// <summary>Draw the standard WhyKnot footer with a gently animated heart.</summary>
         public static void BrandFooter(double? timeSeconds = null) {
             var now = timeSeconds ?? EditorApplication.timeSinceStartup;
             var heartColor = ColorUtility.ToHtmlStringRGB(AnimatedAccentColor(now));
             var text = "Made with <color=#" + heartColor + ">\u2665</color> by WhyKnot";
-            EditorGUILayout.LabelField(
-                new GUIContent(text, "Made with care by WhyKnot."),
-                BrandFooterStyle,
-                GUILayout.ExpandWidth(true),
-                GUILayout.MinHeight(18));
+            using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandWidth(true), GUILayout.MinHeight(22))) {
+                if (BrandLogoTexture != null) {
+                    BrandLogoMark(38f, 20f, 0.82f);
+                }
+                EditorGUILayout.LabelField(
+                    new GUIContent(text, "Made with care by WhyKnot."),
+                    BrandFooterStyle,
+                    GUILayout.ExpandWidth(true),
+                    GUILayout.MinHeight(20));
+            }
         }
 
         /// <summary>Draw the standard bottom chrome for hand-rolled windows.</summary>
@@ -598,6 +668,10 @@ namespace UmeVrcfQol.Internal.Styling {
         /// </summary>
         public static void TitleBar(string title, string helpUrl = null) {
             using (new EditorGUILayout.HorizontalScope()) {
+                if (BrandLogoTexture != null) {
+                    BrandLogoMark(34f, 22f, 0.9f);
+                    GUILayout.Space(4f);
+                }
                 EditorGUILayout.LabelField(title, SectionTitle);
                 if (!string.IsNullOrEmpty(helpUrl)) {
                     GUILayout.FlexibleSpace();

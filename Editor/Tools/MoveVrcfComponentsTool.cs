@@ -223,7 +223,7 @@ namespace UmeVrcfQol.Tools {
         internal static void Show(GameObject source) {
             var w = CreateInstance<MoveVrcfComponentsWindow>();
             w._source = source;
-            w.titleContent = new GUIContent("Move VRCFury Components");
+            w.titleContent = WkStyles.TitleContent("Move VRCFury Components");
             // Position near the cursor so it feels like a contextual dialog.
             var p = GUIUtility.GUIToScreenPoint(Event.current?.mousePosition ?? Vector2.zero);
             w.position = new Rect(p.x + 10, p.y + 10, 420, 230);

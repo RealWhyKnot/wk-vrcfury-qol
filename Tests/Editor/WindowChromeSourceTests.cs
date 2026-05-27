@@ -44,6 +44,30 @@ namespace UmeVrcfQol.Tests {
             }
         }
 
+        [Test]
+        public void PublicWindowsUseBrandedTitleContent() {
+            var packageRoot = LocatePackageRoot();
+            foreach (var relativePath in PublicWindowSources) {
+                string text = ReadSource(packageRoot, relativePath);
+                bool hasLogoTitle = text.Contains("WkStyles.TitleContent")
+                    || text.Contains("BrandLogoTexture")
+                    || text.Contains(": WkToolWindow");
+                Assert.IsTrue(hasLogoTitle, $"{relativePath} must use the WhyKnot logo in its window title.");
+            }
+        }
+
+        [Test]
+        public void PackageIncludesWhyKnotLogoAsset() {
+            var packageRoot = LocatePackageRoot();
+            var logoPath = Path.Combine(packageRoot, "Editor", "Internal", "Assets", "WhyKnotLogo.png");
+            Assert.IsTrue(File.Exists(logoPath), "Expected the package to include the WhyKnot logo editor asset.");
+
+            string styles = ReadSource(packageRoot, "Editor/Internal/Styling/WkStyles.cs");
+            StringAssert.Contains("BrandLogoAssetName", styles);
+            StringAssert.Contains("TitleContent", styles);
+            StringAssert.Contains("BrandLogoMark", styles);
+        }
+
         private static string ReadSource(string packageRoot, string relativePath) {
             var fullPath = Path.Combine(packageRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
             Assert.IsTrue(File.Exists(fullPath), $"Expected to find {relativePath} under {packageRoot}.");
