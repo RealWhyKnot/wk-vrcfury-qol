@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.3](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.3) -- 2026-05-28
+
 ### Added
 - **ui:** Fit editor tool windows (84932da)
 - **ui:** Add WhyKnot logo chrome (6b18d27)
