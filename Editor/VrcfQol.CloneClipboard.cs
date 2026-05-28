@@ -2,11 +2,6 @@
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text.RegularExpressions;
-using UnityEditor;
 using UnityEngine;
 
 namespace UmeVrcfQol {
@@ -38,27 +33,6 @@ namespace UmeVrcfQol {
             r.PageStateField.SetValue(newPage, newState);
             return newPage;
         }
-
-        internal static class PageClipboard {
-            private static object _clone;
-            private static string _sourceDescription;
-
-            public static bool HasValue => _clone != null;
-            public static string SourceDescription => _sourceDescription ?? "";
-
-            public static void CopyFrom(FlipbookContext ctx) {
-                if (ctx.pages == null || ctx.pageIndex < 0 || ctx.pageIndex >= ctx.pages.Count) return;
-                _clone = DeepClonePage(ctx.pages[ctx.pageIndex]);
-                _sourceDescription = $"Page #{ctx.pageIndex + 1} of \"{ctx.toggleName}\"";
-            }
-
-            public static object TakeClone() {
-                if (_clone == null) return null;
-                return DeepClonePage(_clone);
-            }
-        }
-
-        // =========================== Helpers ==================================
 
         internal static object FindFlipbookAction(IList actions) {
             if (actions == null) return null;
