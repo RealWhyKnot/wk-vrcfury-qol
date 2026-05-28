@@ -11,7 +11,13 @@ The most recent release is at the top.
 
 ## Unreleased
 
-_No notable changes since the last release._
+### Added
+- **ui:** Fit editor tool windows (84932da)
+- **ui:** Add WhyKnot logo chrome (6b18d27)
+- **ui:** Add responsive branded editor chrome (a068d90)
+
+### Fixed
+- **ui:** Remove animated title chrome (891f16e)
 
 ---
 
