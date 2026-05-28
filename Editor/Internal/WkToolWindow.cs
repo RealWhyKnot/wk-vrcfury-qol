@@ -44,9 +44,6 @@ namespace UmeVrcfQol.Internal {
         /// <summary>When true (default), the WhyKnot brand signature renders at the bottom.</summary>
         protected virtual bool ShowBrandFooter => true;
 
-        /// <summary>When true (default), title chrome uses a subtle animated accent line.</summary>
-        protected virtual bool AnimateChrome => true;
-
         /// <summary>Preferred size used when the window opens or its content signature changes.</summary>
         protected virtual Vector2 PreferredSize => InitialMinSize;
 
@@ -74,20 +71,9 @@ namespace UmeVrcfQol.Internal {
         protected virtual void OnEnable() {
             titleContent = WkStyles.TitleContent(Title);
             minSize = InitialMinSize;
-            EditorApplication.update -= RepaintAnimatedChrome;
-            if (AnimateChrome) EditorApplication.update += RepaintAnimatedChrome;
         }
 
-        protected virtual void OnDisable() {
-            EditorApplication.update -= RepaintAnimatedChrome;
-        }
-
-        private double _nextAnimatedRepaint;
         private string _lastAutoSizeSignature;
-        private void RepaintAnimatedChrome() {
-            if (!AnimateChrome) return;
-            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
-        }
 
         protected void RequestAutoSize() {
             WkStyles.AutoSizeWindow(
@@ -105,8 +91,6 @@ namespace UmeVrcfQol.Internal {
             using (WkStyles.Scope(Theme)) {
                 using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
                     WkStyles.TitleBar(Title, HelpUrl);
-                    if (AnimateChrome) WkStyles.AnimatedAccentLine();
-                    else WkStyles.Divider();
 
                     if (ShowScrollView) {
                         using (var s = new EditorGUILayout.ScrollViewScope(

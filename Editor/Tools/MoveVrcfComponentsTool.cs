@@ -218,7 +218,6 @@ namespace UmeVrcfQol.Tools {
         private GameObject _destination;
         private MoveVrcfComponentsTool.Mode _mode = MoveVrcfComponentsTool.Mode.WholeComponents;
         private Vector2 _pageScroll;
-        private double _nextAnimatedRepaint;
         private string _autoSizeSignature;
 
         internal static void Show(GameObject source) {
@@ -232,24 +231,10 @@ namespace UmeVrcfQol.Tools {
             w.ShowUtility();
         }
 
-        private void OnEnable() {
-            EditorApplication.update -= RepaintAnimatedChrome;
-            EditorApplication.update += RepaintAnimatedChrome;
-        }
-
-        private void OnDisable() {
-            EditorApplication.update -= RepaintAnimatedChrome;
-        }
-
-        private void RepaintAnimatedChrome() {
-            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
-        }
-
         private void OnGUI() {
             using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
                 WkStyles.TitleBar("Move VRCFury Components");
-                WkStyles.AnimatedAccentLine();
 
                 using (var s = new EditorGUILayout.ScrollViewScope(
                         _pageScroll, false, false,

@@ -385,26 +385,6 @@ namespace UmeVrcfQol.Internal.Styling {
             EditorGUI.DrawRect(rect, ColorDivider);
         }
 
-        /// <summary>Theme-coloured animation accent. Deterministic for tests when a time value is supplied.</summary>
-        public static Color AnimatedAccentColor(double timeSeconds) {
-            var pulse = 0.5f + 0.5f * Mathf.Sin((float)timeSeconds * 2.4f);
-            return Color.Lerp(ColorInfo, ColorAccent, pulse);
-        }
-
-        /// <summary>Subtle animated title underline for Editor windows.</summary>
-        public static void AnimatedAccentLine(float thickness = 2f, double? timeSeconds = null) {
-            var rect = EditorGUILayout.GetControlRect(false, Mathf.Max(1f, thickness), GUILayout.ExpandWidth(true));
-            EditorGUI.DrawRect(rect, ColorDividerSubtle);
-            if (rect.width <= 1f) return;
-
-            var now = timeSeconds ?? EditorApplication.timeSinceStartup;
-            var cycle = Mathf.Repeat((float)now, 2.8f) / 2.8f;
-            var gleamWidth = Mathf.Clamp(rect.width * 0.28f, 48f, 180f);
-            var x = Mathf.Lerp(rect.x - gleamWidth, rect.xMax, cycle);
-            var gleam = new Rect(x, rect.y, gleamWidth, rect.height);
-            EditorGUI.DrawRect(gleam, AnimatedAccentColor(now));
-        }
-
         /// <summary>Lower-contrast divider for dense row lists; reads ColorDividerSubtle.</summary>
         public static void SubtleDivider(float thickness = 1f) {
             var rect = EditorGUILayout.GetControlRect(false, thickness);
@@ -660,10 +640,9 @@ namespace UmeVrcfQol.Internal.Styling {
             return null;
         }
 
-        /// <summary>Draw the standard WhyKnot footer with a gently animated heart.</summary>
+        /// <summary>Draw the standard WhyKnot footer.</summary>
         public static void BrandFooter(double? timeSeconds = null) {
-            var now = timeSeconds ?? EditorApplication.timeSinceStartup;
-            var heartColor = ColorUtility.ToHtmlStringRGB(AnimatedAccentColor(now));
+            var heartColor = ColorUtility.ToHtmlStringRGB(ColorAccent);
             var text = "Made with <color=#" + heartColor + ">\u2665</color> by WhyKnot";
             using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandWidth(true), GUILayout.MinHeight(22))) {
                 if (BrandLogoTexture != null) {
@@ -681,15 +660,6 @@ namespace UmeVrcfQol.Internal.Styling {
         public static void WindowFooter() {
             Divider();
             BrandFooter();
-        }
-
-        /// <summary>Throttle animated chrome repaints for windows that do not inherit WkToolWindow.</summary>
-        public static void RepaintAnimatedChrome(EditorWindow window, ref double nextRepaintTime) {
-            if (window == null) return;
-            var now = EditorApplication.timeSinceStartup;
-            if (now < nextRepaintTime) return;
-            nextRepaintTime = now + (1.0 / 30.0);
-            window.Repaint();
         }
 
         /// <summary>

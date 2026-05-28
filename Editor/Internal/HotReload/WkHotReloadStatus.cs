@@ -54,7 +54,6 @@ namespace UmeVrcfQol.Internal.HotReload {
             using var _wkTheme = WkStyles.Scope(WkTheme.WhyKnot);
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
                 WkStyles.TitleBar("Hot Reload Status");
-                WkStyles.AnimatedAccentLine();
 
                 using (var s = new EditorGUILayout.ScrollViewScope(
                         _bodyScroll, false, false,

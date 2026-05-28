@@ -26,6 +26,12 @@ namespace UmeVrcfQol.Tests {
             "Editor/Tools/ReplaceReferencesWindow.cs",
         };
 
+        private static readonly string[] AnimatedChromeMarkers = {
+            "AnimatedAccentLine",
+            "RepaintAnimatedChrome",
+            "AnimateChrome",
+        };
+
         [Test]
         public void PublicWindowsRenderWhyKnotFooter() {
             var packageRoot = LocatePackageRoot();
@@ -97,6 +103,17 @@ namespace UmeVrcfQol.Tests {
         }
 
         [Test]
+        public void PublicWindowsDoNotDrawAnimatedTopAccent() {
+            var packageRoot = LocatePackageRoot();
+            foreach (var relativePath in PublicWindowSources) {
+                string text = ReadSource(packageRoot, relativePath);
+                foreach (string marker in AnimatedChromeMarkers) {
+                    Assert.IsFalse(text.Contains(marker), $"{relativePath} must not draw animated title chrome.");
+                }
+            }
+        }
+
+        [Test]
         public void PackageIncludesWhyKnotLogoAsset() {
             var packageRoot = LocatePackageRoot();
             var logoPath = Path.Combine(packageRoot, "Editor", "Internal", "Assets", "WhyKnotLogo.png");
@@ -110,6 +127,9 @@ namespace UmeVrcfQol.Tests {
             StringAssert.Contains("\\u2665", styles);
             StringAssert.Contains("AutoSizeWindow", styles);
             StringAssert.DoesNotContain("new GUIContent(title, BrandLogoTexture", styles);
+            foreach (string marker in AnimatedChromeMarkers) {
+                StringAssert.DoesNotContain(marker, styles);
+            }
         }
 
         private static string ReadSource(string packageRoot, string relativePath) {

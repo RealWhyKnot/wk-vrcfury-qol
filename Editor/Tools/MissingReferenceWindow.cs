@@ -25,7 +25,6 @@ namespace UmeVrcfQol.Tools {
         [SerializeField] private bool _shouldDismissOnClose;
         [SerializeField] private bool _autoShow;
         private Vector2 _scroll;
-        private double _nextAnimatedRepaint;
         private string _autoSizeSignature;
 
         // ------ Open variants ----------------------------------------------
@@ -60,12 +59,6 @@ namespace UmeVrcfQol.Tools {
             if (_missing == null || _missing.Count == 0) {
                 _missing = MissingReferenceWarningTool.Scan();
             }
-            EditorApplication.update -= RepaintAnimatedChrome;
-            EditorApplication.update += RepaintAnimatedChrome;
-        }
-
-        private void OnDisable() {
-            EditorApplication.update -= RepaintAnimatedChrome;
         }
 
         private void OnDestroy() {
@@ -74,17 +67,12 @@ namespace UmeVrcfQol.Tools {
             }
         }
 
-        private void RepaintAnimatedChrome() {
-            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
-        }
-
         // ------ GUI ---------------------------------------------------------
 
         private void OnGUI() {
             using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
                 WkStyles.TitleBar("Missing References");
-                WkStyles.AnimatedAccentLine();
                 DrawHeader();
                 DrawDivider();
                 DrawList();

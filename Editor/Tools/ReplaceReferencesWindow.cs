@@ -42,7 +42,6 @@ namespace UmeVrcfQol.Tools {
         private Vector2 _rootsScroll;
         private Vector2 _groupsScroll;
         private Vector2 _pageScroll;
-        private double _nextAnimatedRepaint;
         private string _autoSizeSignature;
 
         // ---------------- Public entry point ------------------------------
@@ -63,26 +62,12 @@ namespace UmeVrcfQol.Tools {
             w.Focus();
         }
 
-        private void OnEnable() {
-            EditorApplication.update -= RepaintAnimatedChrome;
-            EditorApplication.update += RepaintAnimatedChrome;
-        }
-
-        private void OnDisable() {
-            EditorApplication.update -= RepaintAnimatedChrome;
-        }
-
-        private void RepaintAnimatedChrome() {
-            WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
-        }
-
         // ---------------- GUI ---------------------------------------------
 
         private void OnGUI() {
             using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
             using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
                 WkStyles.TitleBar("Replace References");
-                WkStyles.AnimatedAccentLine();
 
                 using (var s = new EditorGUILayout.ScrollViewScope(
                         _pageScroll, false, false,
