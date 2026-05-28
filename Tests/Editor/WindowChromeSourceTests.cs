@@ -20,6 +20,12 @@ namespace UmeVrcfQol.Tests {
             "Editor/Tools/ReplaceReferencesWindow.cs",
         };
 
+        private static readonly string[] LongContentSources = {
+            "Editor/Internal/HotReload/WkHotReloadStatus.cs",
+            "Editor/Tools/MissingReferenceWindow.cs",
+            "Editor/Tools/ReplaceReferencesWindow.cs",
+        };
+
         [Test]
         public void PublicWindowsRenderWhyKnotFooter() {
             var packageRoot = LocatePackageRoot();
@@ -45,14 +51,48 @@ namespace UmeVrcfQol.Tests {
         }
 
         [Test]
+        public void LongContentAreasUseCappedScrollHeights() {
+            var packageRoot = LocatePackageRoot();
+            foreach (var relativePath in LongContentSources) {
+                string text = ReadSource(packageRoot, relativePath);
+                StringAssert.Contains("CappedListHeight", text, $"{relativePath} must cap long content height.");
+            }
+        }
+
+        [Test]
         public void PublicWindowsUseBrandedTitleContent() {
             var packageRoot = LocatePackageRoot();
             foreach (var relativePath in PublicWindowSources) {
                 string text = ReadSource(packageRoot, relativePath);
-                bool hasLogoTitle = text.Contains("WkStyles.TitleContent")
-                    || text.Contains("BrandLogoTexture")
+                bool hasTitleContent = text.Contains("WkStyles.TitleContent")
                     || text.Contains(": WkToolWindow");
-                Assert.IsTrue(hasLogoTitle, $"{relativePath} must use the WhyKnot logo in its window title.");
+                Assert.IsTrue(hasTitleContent, $"{relativePath} must use shared text-only title content.");
+                Assert.IsFalse(text.Contains("BrandLogoTexture"),
+                    $"{relativePath} must not place the WhyKnot logo in title/tab chrome.");
+            }
+        }
+
+        [Test]
+        public void PublicWindowsHaveAutoSizeHooks() {
+            var packageRoot = LocatePackageRoot();
+            foreach (var relativePath in PublicWindowSources) {
+                string text = ReadSource(packageRoot, relativePath);
+                bool hasAutoSize = text.Contains("RequestAutoSize")
+                    || text.Contains("AutoSizeWindow")
+                    || text.Contains(": WkToolWindow");
+                Assert.IsTrue(hasAutoSize, $"{relativePath} must request capped automatic resizing.");
+            }
+        }
+
+        [Test]
+        public void PublicWindowsDoNotRenderExtraLogos() {
+            var packageRoot = LocatePackageRoot();
+            foreach (var relativePath in PublicWindowSources) {
+                string text = ReadSource(packageRoot, relativePath);
+                Assert.IsFalse(text.Contains("BrandLogoMark"),
+                    $"{relativePath} must leave logo rendering to the shared footer.");
+                Assert.IsFalse(text.Contains("BrandLogoTexture"),
+                    $"{relativePath} must leave logo rendering to the shared footer.");
             }
         }
 
@@ -66,6 +106,10 @@ namespace UmeVrcfQol.Tests {
             StringAssert.Contains("BrandLogoAssetName", styles);
             StringAssert.Contains("TitleContent", styles);
             StringAssert.Contains("BrandLogoMark", styles);
+            StringAssert.Contains("Made with", styles);
+            StringAssert.Contains("\\u2665", styles);
+            StringAssert.Contains("AutoSizeWindow", styles);
+            StringAssert.DoesNotContain("new GUIContent(title, BrandLogoTexture", styles);
         }
 
         private static string ReadSource(string packageRoot, string relativePath) {

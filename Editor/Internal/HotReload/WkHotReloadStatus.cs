@@ -29,6 +29,7 @@ namespace UmeVrcfQol.Internal.HotReload {
 
         private Vector2 _scroll;
         private Vector2 _bodyScroll;
+        private string _autoSizeSignature;
 
         private void OnEnable() {
             // Keep the view fresh while it's visible. Hot-reload events
@@ -69,6 +70,7 @@ namespace UmeVrcfQol.Internal.HotReload {
                 DrawFooter();
                 WkStyles.BrandFooter();
             }
+            RequestAutoSize();
         }
 
         private void DrawSummary() {
@@ -114,6 +116,20 @@ namespace UmeVrcfQol.Internal.HotReload {
                     EditorPrefs.SetBool(EditorHotReload.HotReloadEnabledPrefsKey, next);
                 }
             }
+        }
+
+        private void RequestAutoSize() {
+            var events = EditorHotReload.RecentEvents;
+            var count = events != null ? events.Count : 0;
+            var signature = $"{count}|{EditorHotReload.RefreshCount}|{EditorHotReload.ShaderReimportCount}|{EditorHotReload.LastCompileResult}|{EditorHotReload.LogFilePath}";
+            var preferred = new Vector2(620f, 280f + WkStyles.CappedListHeight(count, 18f, 120f, 220f));
+            WkStyles.AutoSizeWindow(
+                this,
+                ref _autoSizeSignature,
+                signature,
+                new Vector2(460f, 360f),
+                preferred,
+                new Vector2(760f, 680f));
         }
     }
 }

@@ -274,6 +274,64 @@ namespace UmeVrcfQol.Internal.Styling {
         /// <summary>Default labelled-row label width for LabeledField.</summary>
         public const float LabelColumn = 110f;
 
+        /// <summary>Default upper bound for automatic editor-window fitting.</summary>
+        public static readonly Vector2 DefaultMaxAutoWindowSize = new Vector2(980f, 760f);
+
+        /// <summary>Clamp a content-driven list height so long lists scroll instead of stretching the window.</summary>
+        public static float CappedListHeight(int itemCount, float rowHeight = 20f, float minHeight = 80f, float maxHeight = 260f) {
+            var count = Mathf.Max(0, itemCount);
+            return Mathf.Clamp(count * rowHeight + 12f, minHeight, maxHeight);
+        }
+
+        /// <summary>Clamp a preferred window size against minimum and automatic-fit maximum bounds.</summary>
+        public static Vector2 ClampAutoWindowSize(Vector2 preferredSize, Vector2 minSize, Vector2 maxAutoSize) {
+            var max = new Vector2(
+                Mathf.Max(minSize.x, maxAutoSize.x),
+                Mathf.Max(minSize.y, maxAutoSize.y));
+            return new Vector2(
+                Mathf.Clamp(preferredSize.x, minSize.x, max.x),
+                Mathf.Clamp(preferredSize.y, minSize.y, max.y));
+        }
+
+        /// <summary>
+        /// Resize an EditorWindow when a caller-supplied content signature changes.
+        /// Long content should still live in capped scroll views; this only fits the chrome and active sections.
+        /// </summary>
+        public static bool AutoSizeWindow(
+                EditorWindow window,
+                ref string lastSignature,
+                string signature,
+                Vector2 minSize,
+                Vector2 preferredSize,
+                Vector2 maxAutoSize) {
+            if (window == null) return false;
+            window.minSize = minSize;
+
+            var normalized = signature ?? "";
+            if (lastSignature == normalized) return false;
+            lastSignature = normalized;
+
+            ScheduleAutoSize(window, minSize, preferredSize, maxAutoSize);
+            return true;
+        }
+
+        public static void ScheduleAutoSize(
+                EditorWindow window,
+                Vector2 minSize,
+                Vector2 preferredSize,
+                Vector2 maxAutoSize) {
+            if (window == null) return;
+            var target = ClampAutoWindowSize(preferredSize, minSize, maxAutoSize);
+            EditorApplication.delayCall += () => {
+                if (window == null) return;
+                window.minSize = minSize;
+                var pos = window.position;
+                if (pos.width <= 1f || pos.height <= 1f) return;
+                if (Mathf.Abs(pos.width - target.x) < 1f && Mathf.Abs(pos.height - target.y) < 1f) return;
+                window.position = new Rect(pos.x, pos.y, target.x, target.y);
+            };
+        }
+
         // ---- Primitives ---------------------------------------------------
 
         /// <summary>
@@ -554,7 +612,10 @@ namespace UmeVrcfQol.Internal.Styling {
         }
 
         public static GUIContent TitleContent(string title, string tooltip = null) {
-            return new GUIContent(title, BrandLogoTexture, tooltip ?? title);
+            // The footer owns the only visible brand mark. Keeping the native
+            // Unity tab text-only avoids duplicate logos when custom chrome is
+            // visible in the window body.
+            return new GUIContent(title, tooltip ?? title);
         }
 
         public static bool BrandLogoMark(float width = 40f, float height = 22f, float alpha = 0.9f) {
@@ -668,10 +729,6 @@ namespace UmeVrcfQol.Internal.Styling {
         /// </summary>
         public static void TitleBar(string title, string helpUrl = null) {
             using (new EditorGUILayout.HorizontalScope()) {
-                if (BrandLogoTexture != null) {
-                    BrandLogoMark(34f, 22f, 0.9f);
-                    GUILayout.Space(4f);
-                }
                 EditorGUILayout.LabelField(title, SectionTitle);
                 if (!string.IsNullOrEmpty(helpUrl)) {
                     GUILayout.FlexibleSpace();

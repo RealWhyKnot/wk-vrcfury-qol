@@ -219,6 +219,7 @@ namespace UmeVrcfQol.Tools {
         private MoveVrcfComponentsTool.Mode _mode = MoveVrcfComponentsTool.Mode.WholeComponents;
         private Vector2 _pageScroll;
         private double _nextAnimatedRepaint;
+        private string _autoSizeSignature;
 
         internal static void Show(GameObject source) {
             var w = CreateInstance<MoveVrcfComponentsWindow>();
@@ -228,7 +229,6 @@ namespace UmeVrcfQol.Tools {
             var p = GUIUtility.GUIToScreenPoint(Event.current?.mousePosition ?? Vector2.zero);
             w.position = new Rect(p.x + 10, p.y + 10, 420, 230);
             w.minSize = new Vector2(420, 230);
-            w.maxSize = new Vector2(680, 340);
             w.ShowUtility();
         }
 
@@ -326,9 +326,24 @@ namespace UmeVrcfQol.Tools {
 
                 WkStyles.WindowFooter();
             }
+            RequestAutoSize();
+        }
+
+        private void RequestAutoSize() {
+            var sourceId = _source != null ? _source.GetInstanceID() : 0;
+            var destinationId = _destination != null ? _destination.GetInstanceID() : 0;
+            var signature = $"{sourceId}|{destinationId}|{_mode}|{ValidationError()}";
+            WkStyles.AutoSizeWindow(
+                this,
+                ref _autoSizeSignature,
+                signature,
+                new Vector2(420f, 230f),
+                new Vector2(520f, _source == null ? 260f : 340f),
+                new Vector2(680f, 420f));
         }
 
         private string ValidationError() {
+            if (_source == null) return "Source GameObject was deleted.";
             if (_destination == null) return "Pick a destination GameObject.";
             if (_destination == _source) return "Destination must differ from the source.";
             // Same scene check — moving across scenes is technically possible,

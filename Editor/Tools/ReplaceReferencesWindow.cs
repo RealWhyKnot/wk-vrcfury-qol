@@ -43,6 +43,7 @@ namespace UmeVrcfQol.Tools {
         private Vector2 _groupsScroll;
         private Vector2 _pageScroll;
         private double _nextAnimatedRepaint;
+        private string _autoSizeSignature;
 
         // ---------------- Public entry point ------------------------------
 
@@ -99,6 +100,7 @@ namespace UmeVrcfQol.Tools {
                 DrawApplyBar();
                 WkStyles.WindowFooter();
             }
+            RequestAutoSize();
         }
 
         private static void DrawIntro() {
@@ -114,7 +116,9 @@ namespace UmeVrcfQol.Tools {
                 new GUIContent("1. Search these GameObjects",
                     "Pick the avatar, outfit, or prop roots that contain the VRCFury components you want to scan."),
                 EditorStyles.boldLabel);
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.MinHeight(60), GUILayout.MaxHeight(150))) {
+            using (new EditorGUILayout.VerticalScope(
+                    EditorStyles.helpBox,
+                    GUILayout.Height(WkStyles.CappedListHeight(_searchRoots.Count, 24f, 60f, 150f)))) {
                 _rootsScroll = EditorGUILayout.BeginScrollView(_rootsScroll);
                 if (_searchRoots.Count == 0) {
                     EditorGUILayout.LabelField(
@@ -197,7 +201,10 @@ namespace UmeVrcfQol.Tools {
                 EditorGUILayout.LabelField(_scanSummary, EditorStyles.miniLabel);
             }
 
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.ExpandHeight(true))) {
+            var visibleGroups = _groups.Count(g => !_hideUnchanged || g.HasReplacement);
+            using (new EditorGUILayout.VerticalScope(
+                    EditorStyles.helpBox,
+                    GUILayout.Height(WkStyles.CappedListHeight(visibleGroups, 42f, 140f, 320f)))) {
                 _groupsScroll = EditorGUILayout.BeginScrollView(_groupsScroll);
                 if (_searchRoots.Count == 0) {
                     EditorGUILayout.LabelField("Step 1: add GameObjects above to begin.", EditorStyles.centeredGreyMiniLabel);
@@ -314,6 +321,24 @@ namespace UmeVrcfQol.Tools {
         private static void DrawSubtleDivider() {
             var rect = EditorGUILayout.GetControlRect(false, 1);
             EditorGUI.DrawRect(rect, new Color(0, 0, 0, 0.06f));
+        }
+
+        private void RequestAutoSize() {
+            var queued = _groups.Where(g => g.HasReplacement).Sum(g => g.Sites.Count);
+            var visibleGroups = _groups.Count(g => !_hideUnchanged || g.HasReplacement);
+            var signature = $"{_searchRoots.Count}|{_groups.Count}|{visibleGroups}|{queued}|{_hideUnchanged}|{_scanSummary}";
+            var preferred = new Vector2(
+                _groups.Count > 0 ? 820f : 640f,
+                300f
+                    + WkStyles.CappedListHeight(_searchRoots.Count, 24f, 60f, 150f)
+                    + WkStyles.CappedListHeight(visibleGroups, 42f, 140f, 320f));
+            WkStyles.AutoSizeWindow(
+                this,
+                ref _autoSizeSignature,
+                signature,
+                new Vector2(620f, 460f),
+                preferred,
+                new Vector2(980f, 800f));
         }
 
 

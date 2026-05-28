@@ -26,6 +26,7 @@ namespace UmeVrcfQol.Tools {
         [SerializeField] private bool _autoShow;
         private Vector2 _scroll;
         private double _nextAnimatedRepaint;
+        private string _autoSizeSignature;
 
         // ------ Open variants ----------------------------------------------
 
@@ -90,6 +91,7 @@ namespace UmeVrcfQol.Tools {
                 DrawDivider();
                 DrawFooter();
             }
+            RequestAutoSize();
         }
 
         private void DrawHeader() {
@@ -111,7 +113,9 @@ namespace UmeVrcfQol.Tools {
         }
 
         private void DrawList() {
-            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox, GUILayout.ExpandHeight(true))) {
+            using (new EditorGUILayout.VerticalScope(
+                    EditorStyles.helpBox,
+                    GUILayout.Height(WkStyles.CappedListHeight(_missing.Count, 28f, 120f, 260f)))) {
                 _scroll = EditorGUILayout.BeginScrollView(_scroll);
                 if (_missing.Count == 0) {
                     EditorGUILayout.LabelField(
@@ -154,7 +158,6 @@ namespace UmeVrcfQol.Tools {
 
         private void DrawFooter() {
             using (new EditorGUILayout.HorizontalScope()) {
-                WkStyles.BrandFooter();
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button(new GUIContent("Re-scan", "Walk the scenes again and refresh the list."),
                         GUILayout.Height(22), GUILayout.Width(100))) {
@@ -169,6 +172,21 @@ namespace UmeVrcfQol.Tools {
                     Close();
                 }
             }
+            WkStyles.BrandFooter();
+        }
+
+        private void RequestAutoSize() {
+            var signature = $"{_missing.Count}|{_autoShow}|{_shouldDismissOnClose}";
+            var preferred = new Vector2(
+                620f,
+                210f + WkStyles.CappedListHeight(_missing.Count, 28f, 120f, 260f));
+            WkStyles.AutoSizeWindow(
+                this,
+                ref _autoSizeSignature,
+                signature,
+                new Vector2(520f, 280f),
+                preferred,
+                new Vector2(820f, 620f));
         }
 
         private static void DrawDivider() {

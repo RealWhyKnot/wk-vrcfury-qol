@@ -33,7 +33,10 @@ namespace UmeVrcfQol.Internal.Logging {
 
         protected override string Title => "WhyKnot Logs";
         protected override Vector2 InitialMinSize => new Vector2(540, 360);
+        protected override Vector2 PreferredSize => new Vector2(760, 560);
         protected override bool ShowScrollView => false;
+        protected override string AutoSizeSignature =>
+            $"{_packageIds?.Length ?? 0}|{_selectedTab}|{_logContent?.Length ?? 0}|{_searchQuery}|{_showDebug}|{_showInfo}|{_showWarn}|{_showError}";
 
         /// <summary>Open or focus the viewer. Call from downstream [MenuItem] hooks.</summary>
         public static WkLogViewerWindow Open() {

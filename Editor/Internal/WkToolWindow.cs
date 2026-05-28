@@ -47,6 +47,15 @@ namespace UmeVrcfQol.Internal {
         /// <summary>When true (default), title chrome uses a subtle animated accent line.</summary>
         protected virtual bool AnimateChrome => true;
 
+        /// <summary>Preferred size used when the window opens or its content signature changes.</summary>
+        protected virtual Vector2 PreferredSize => InitialMinSize;
+
+        /// <summary>Upper bound used only for automatic fitting. Users can still resize larger manually.</summary>
+        protected virtual Vector2 MaxAutoSize => WkStyles.DefaultMaxAutoWindowSize;
+
+        /// <summary>Content signature that triggers a one-shot automatic resize when it changes.</summary>
+        protected virtual string AutoSizeSignature => Title;
+
         /// <summary>Subclass-supplied window body. Called inside the theme scope.</summary>
         protected abstract void OnBodyGUI();
 
@@ -74,9 +83,20 @@ namespace UmeVrcfQol.Internal {
         }
 
         private double _nextAnimatedRepaint;
+        private string _lastAutoSizeSignature;
         private void RepaintAnimatedChrome() {
             if (!AnimateChrome) return;
             WkStyles.RepaintAnimatedChrome(this, ref _nextAnimatedRepaint);
+        }
+
+        protected void RequestAutoSize() {
+            WkStyles.AutoSizeWindow(
+                this,
+                ref _lastAutoSizeSignature,
+                AutoSizeSignature,
+                InitialMinSize,
+                PreferredSize,
+                MaxAutoSize);
         }
 
         private Vector2 _scroll;
@@ -102,18 +122,19 @@ namespace UmeVrcfQol.Internal {
 
                     if (ShowFooter || ShowBrandFooter) {
                         WkStyles.Divider();
-                        using (new EditorGUILayout.HorizontalScope()) {
-                            if (ShowBrandFooter) {
-                                WkStyles.BrandFooter();
-                            }
-                            if (ShowFooter) {
+                        if (ShowFooter) {
+                            using (new EditorGUILayout.HorizontalScope()) {
                                 GUILayout.FlexibleSpace();
                                 OnFooterGUI();
                             }
                         }
+                        if (ShowBrandFooter) {
+                            WkStyles.BrandFooter();
+                        }
                     }
                 }
             }
+            RequestAutoSize();
         }
     }
 }
