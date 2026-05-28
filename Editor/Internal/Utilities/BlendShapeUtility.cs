@@ -13,10 +13,9 @@
 // key (indices shift); preserved exactly so animation clips that bind by
 // name keep working.
 //
-// Promoted from dev.whyknot.avatar-qol's Editor/Common/BlendShapeUtility.cs;
-// the AddOrReplace signature gains optional deltaNormals + deltaTangents
+// The AddOrReplace signature includes optional deltaNormals + deltaTangents
 // parameters since both are part of Unity's BlendShape frame API and
-// callers that compute them shouldn't have to drop them.
+// callers that compute them should not have to drop them.
 
 using System;
 using System.Collections.Generic;

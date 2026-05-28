@@ -1,6 +1,5 @@
 // AvatarIntentMode.cs
 //
-// Promoted from dev.whyknot.avatar-qol's Editor/Common/AvatarIntentMode.cs.
 // Tags why an avatar build hook is firing -- the same hook code paths
 // usually behave slightly differently between an in-editor preview, a
 // play-mode invocation, and a publish-time upload.
