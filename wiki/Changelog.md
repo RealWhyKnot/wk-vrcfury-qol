@@ -11,6 +11,12 @@ The most recent release is at the top.
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.4](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.4) -- 2026-05-28
+
 ### Changed
 - **core:** Remove unused page clipboard (6264fe4)
 
