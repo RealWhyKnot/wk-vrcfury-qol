@@ -11,7 +11,11 @@ The most recent release is at the top.
 
 ## Unreleased
 
-_No notable changes since the last release._
+### Changed
+- **core:** Remove unused page clipboard (6264fe4)
+
+### Fixed
+- **core:** Refresh bundled editor internals (3aaa457)
 
 ---
 
