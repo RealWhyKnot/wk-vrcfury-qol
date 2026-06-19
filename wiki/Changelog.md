@@ -11,7 +11,8 @@ The most recent release is at the top.
 
 ## Unreleased
 
-_No notable changes since the last release._
+### Changed
+- **deps:** Bump actions/checkout from 6 to 7 (#2) (c3584c8)
 
 ---
 
