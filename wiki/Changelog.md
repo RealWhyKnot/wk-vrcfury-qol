@@ -11,6 +11,12 @@ The most recent release is at the top.
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.5](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.5) -- 2026-07-21
+
 ### Changed
 - **deps:** Bump actions/checkout from 6 to 7 (#2) (c3584c8)
 - **internal:** Take ownership of the bundled editor internals and drop the unused pipeline, animator, reflection and utility modules (c4d3b3a)
