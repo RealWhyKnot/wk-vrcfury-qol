@@ -1,7 +1,7 @@
 {
   "name": "dev.whyknot.wk-vrcfury-qol",
   "displayName": "VRCFury QoL",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "unity": "2022.3",
   "description": "Quality-of-life Editor tools for VRCFury. Right-click and inline-button affordances for things you'd otherwise dig through nested inspectors for: move/merge VRCFury components between GameObjects, replace references across a selection, auto-sync Global Parameter on Toggles, migrate child toggles into a Flipbook, missing-reference warnings on startup, hot reload + compile-error log.",
   "author": {
