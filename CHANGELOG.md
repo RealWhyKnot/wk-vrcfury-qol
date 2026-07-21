@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file. Format foll
 
 ### Changed
 - **deps:** Bump actions/checkout from 6 to 7 (#2) (c3584c8)
+- **internal:** Take ownership of the bundled editor internals and drop the unused pipeline, animator, reflection and utility modules (c4d3b3a)
 
 ---
 
