@@ -16,10 +16,8 @@ namespace UmeVrcfQol.Internal.HotReload {
 
     public sealed class WkHotReloadStatus : EditorWindow {
 
-        // No [MenuItem] here -- the downstream wires its own menu path
-        // (Window/WhyKnot/<DisplayName>/Hot Reload Status) from its
-        // non-synced code so two synced copies of this file don't race
-        // for the same menu path when both downstreams are installed.
+        // No [MenuItem] here -- VrcfQolMenus wires the menu path
+        // (Window/WhyKnot/<DisplayName>/Hot Reload Status).
         public static void Open() {
             var w = GetWindow<WkHotReloadStatus>(false, "Hot Reload Status");
             w.titleContent = WkStyles.TitleContent("Hot Reload Status");

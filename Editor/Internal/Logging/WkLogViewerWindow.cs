@@ -1,10 +1,8 @@
 // WkLogViewerWindow.cs
 //
-// EditorWindow for browsing per-package session logs. Each downstream's
-// synced Internal/ copy carries its own WkLogViewerWindow; the
-// downstream wires a [MenuItem] in its non-synced code so the window
-// shows up under "Window/WhyKnot/<DisplayName>/Logs" without two
-// synced copies fighting over the same menu path.
+// EditorWindow for browsing per-package session logs. Registers no
+// [MenuItem] of its own; VrcfQolMenus wires the window up under
+// "Window/WhyKnot/<DisplayName>/Logs".
 //
 // Window features:
 //   - Tab per WkLogger registered with WkLoggerRegistry
@@ -38,7 +36,7 @@ namespace UmeVrcfQol.Internal.Logging {
         protected override string AutoSizeSignature =>
             $"{_packageIds?.Length ?? 0}|{_selectedTab}|{_logContent?.Length ?? 0}|{_searchQuery}|{_showDebug}|{_showInfo}|{_showWarn}|{_showError}";
 
-        /// <summary>Open or focus the viewer. Call from downstream [MenuItem] hooks.</summary>
+        /// <summary>Open or focus the viewer. Call from [MenuItem] hooks.</summary>
         public static WkLogViewerWindow Open() {
             var window = GetWindow<WkLogViewerWindow>(false, "WhyKnot Logs");
             window.Show();   // inherited EditorWindow.Show() to make the window visible

@@ -1,10 +1,9 @@
 // WkLoggerRegistry.cs
 //
 // Process-wide lookup for the per-package WkLogger instances. WkLogger
-// self-registers on construction; downstream packages typically expose
-// their registered instance via a small static holder
-// (e.g. `VrcfQolLogger.Instance`) so call sites don't have to type the
-// packageId every time.
+// self-registers on construction; the package exposes its registered
+// instance via a small static holder (`VrcfQolLogger.Instance`) so
+// call sites don't have to type the packageId every time.
 //
 // Get(packageId) throws if no logger was registered. That's deliberate:
 // the requirement is that every WhyKnot package owns and registers its

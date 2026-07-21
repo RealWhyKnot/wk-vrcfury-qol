@@ -254,10 +254,8 @@ namespace UmeVrcfQol.Internal.Styling {
         }
 
         /// <summary>
-        /// Find the directory containing this class's source file. Works
-        /// in both wk-core's source location (Packages/dev.whyknot.core/Editor/Styling)
-        /// and the synced downstream location (.../Editor/Internal/Styling)
-        /// by finding the MonoScript asset by name regardless of where it
+        /// Find the directory containing this class's source file by
+        /// locating the MonoScript asset by name, regardless of where it
         /// lives in the AssetDatabase.
         /// </summary>
         private static string GetScriptDirectory() {

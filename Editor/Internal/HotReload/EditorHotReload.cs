@@ -51,9 +51,8 @@ namespace UmeVrcfQol.Internal.HotReload {
     internal static class EditorHotReload {
         private const double DebounceSeconds = 0.4;
         private const int MaxSessions = 3;
-        // Derived once from the executing assembly so a copy of this file
-        // bundled into a downstream package writes to a per-assembly log
-        // directory automatically.
+        // Derived once from the executing assembly so the watcher writes
+        // to a per-assembly log directory automatically.
         private static readonly string AssemblyIdentity = ResolveAsmIdentity();
         private static readonly string PackageId = ResolvePackageIdFromAssemblyName(AssemblyIdentity);
         private static readonly string LogSubpath = "WhyKnot/Logs/" + AssemblyIdentity + ".hotreload";

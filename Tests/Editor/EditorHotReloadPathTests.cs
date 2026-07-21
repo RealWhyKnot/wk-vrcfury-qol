@@ -39,7 +39,7 @@ namespace WhyKnot.VrcfQol.Tests {
         [TestCase("Packages/dev.whyknot.wk-vrcfury-qol/Editor/Internal/HotReload/EditorHotReload.cs", true)]
         [TestCase("Packages\\dev.whyknot.wk-vrcfury-qol\\Editor\\Internal\\HotReload\\EditorHotReload.cs", true)]
         [TestCase("Packages/dev.whyknot.wk-vrcfury-qol-other/Editor/Foo.cs", false)]
-        [TestCase("Packages/dev.whyknot.wk-vrc-qol/Editor/Foo.cs", false)]
+        [TestCase("Packages/dev.whyknot.some-other-package/Editor/Foo.cs", false)]
         [TestCase("Packages/com.vrcfury.vrcfury/Editor/Foo.cs", false)]
         [TestCase("Assets/Editor/Foo.cs", false)]
         [TestCase("", false)]
@@ -69,7 +69,7 @@ namespace WhyKnot.VrcfQol.Tests {
             Assert.AreEqual(expected, EditorHotReload.ResolveReimportRoot(unityPath));
         }
 
-        [TestCase("Packages/dev.whyknot.wk-vrc-qol/Editor/Tools/MaskPainter/Shaders/Common.cginc")]
+        [TestCase("Packages/dev.whyknot.some-other-package/Editor/Shaders/Common.cginc")]
         [TestCase("Packages/com.unity.render-pipelines.universal/Shaders/Common.hlsl")]
         [TestCase("Assets/Shaders/Common.cginc")]
         [TestCase("Packages")]

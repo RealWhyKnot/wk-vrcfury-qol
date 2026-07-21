@@ -131,8 +131,6 @@ namespace UmeVrcfQol.Internal.Styling {
         public const string BrandLogoAssetName = "WhyKnotLogo";
 
         private static readonly string[] BrandLogoAssetPaths = {
-            "Packages/dev.whyknot.core/Editor/Assets/WhyKnotLogo.png",
-            "Packages/dev.whyknot.wk-vrc-qol/Editor/Internal/Assets/WhyKnotLogo.png",
             "Packages/dev.whyknot.wk-vrcfury-qol/Editor/Internal/Assets/WhyKnotLogo.png",
         };
 

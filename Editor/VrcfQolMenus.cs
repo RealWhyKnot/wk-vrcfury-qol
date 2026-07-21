@@ -1,12 +1,11 @@
 // VrcfQolMenus.cs
 //
-// Wires the wk-core 1.2.0 log viewer and Project Settings page into
-// per-downstream menu paths. WkLogViewerWindow and WkSettingsProvider
-// both ship in the bundled Editor/Internal/ tree but deliberately
-// register no menu / settings attribute of their own -- if they did,
-// each downstream's synced copy would race for the same menu path.
-// Doing the wiring here gives this package its own Window/WhyKnot/VRCFury QoL/Logs
-// menu item and its own WhyKnot/VRCFury QoL Project Settings page.
+// Wires the bundled log viewer and Project Settings page into this
+// package's menu paths. WkLogViewerWindow and WkSettingsProvider ship
+// in Editor/Internal/ but register no menu / settings attribute of
+// their own; the wiring here gives the package its
+// Window/WhyKnot/VRCFury QoL/Logs menu item and its
+// WhyKnot/VRCFury QoL Project Settings page.
 
 using UnityEditor;
 using UmeVrcfQol.Internal.HotReload;

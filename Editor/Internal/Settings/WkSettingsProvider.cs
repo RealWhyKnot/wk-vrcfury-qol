@@ -1,10 +1,8 @@
 // WkSettingsProvider.cs
 //
-// Project Settings page for the WhyKnot tooling family. Each downstream's
-// synced Internal/ copy ships its own provider; the downstream wires
-// the [SettingsProvider] static factory hook from its non-synced code so
-// the page shows up under "WhyKnot/<DisplayName>" without two synced
-// copies fighting over the same path.
+// Project Settings page for the WhyKnot tooling. The provider registers
+// no [SettingsProvider] attribute of its own; VrcfQolMenus wires the
+// static factory hook so the page shows up under "WhyKnot/<DisplayName>".
 //
 // Surfaces:
 //   - Per-registered-logger Console mirror toggles (Debug / Info /
@@ -13,10 +11,6 @@
 //   - Default theme override (WhyKnot / VRCFury).
 //   - Hot-reload watcher enabled toggle (WkEditorPrefs-backed, read by
 //     EditorHotReload on the next startup).
-//   - Optional-integration status panel: WK_NDMF, WK_AAC,
-//     WK_VRC_SDK_AVATARS reported as defined / undefined.
-//   - Theme preview rendering every WkUiElements factory under the
-//     active theme.
 //
 // Built in IMGUI rather than UI Toolkit so the same window can render
 // inside the legacy SettingsWindow + the modern Project Settings host.
@@ -33,7 +27,7 @@ namespace UmeVrcfQol.Internal.Settings {
 
     public static class WkSettingsProvider {
 
-        public const string DefaultPath = "WhyKnot/Core";
+        public const string DefaultPath = "WhyKnot/VRCFury QoL";
         public static readonly string PrefsPackage = ResolvePrefsPackage();
 
         private static string ResolvePrefsPackage() {
@@ -53,12 +47,12 @@ namespace UmeVrcfQol.Internal.Settings {
 
         /// <summary>
         /// Build a SettingsProvider that can be returned from a
-        /// [SettingsProvider]-decorated static method in downstream code.
+        /// [SettingsProvider]-decorated static method.
         /// </summary>
         public static SettingsProvider Build(string path = DefaultPath) {
             return new SettingsProvider(path, SettingsScope.Project) {
                 label = "WhyKnot Tools",
-                keywords = new[] { "WhyKnot", "log", "theme", "wk", "ndmf", "aac" },
+                keywords = new[] { "WhyKnot", "log", "theme", "wk" },
                 guiHandler = _ => DrawGui(),
             };
         }
@@ -75,10 +69,6 @@ namespace UmeVrcfQol.Internal.Settings {
 
                 EditorGUILayout.LabelField("Hot-reload watcher", WkStyles.SubsectionTitle);
                 DrawHotReloadToggle();
-                WkStyles.Divider();
-
-                EditorGUILayout.LabelField("Optional integrations", WkStyles.SubsectionTitle);
-                DrawIntegrationStatus();
             }
         }
 
@@ -141,54 +131,6 @@ namespace UmeVrcfQol.Internal.Settings {
             EditorGUILayout.HelpBox(
                 "Takes effect on the next Editor restart. The watcher subscribes during [InitializeOnLoad].",
                 MessageType.Info);
-        }
-
-        // ---- integration status ----------------------------------
-
-        private static void DrawIntegrationStatus() {
-            DrawSymbol("WK_NDMF (NDMF integration)", IsDefined("WK_NDMF"),
-                "Install nadena.dev.ndmf to route avatar passes through NDMF's pipeline instead of the raw-SDK fallback.");
-            DrawSymbol("WK_VRC_SDK_AVATARS (VRChat Avatars SDK)", IsDefined("WK_VRC_SDK_AVATARS"),
-                "VRChat Avatars SDK is what backs the raw-SDK fallback path when NDMF isn't installed.");
-        }
-
-        private static void DrawSymbol(string label, bool defined, string hint) {
-            using (new EditorGUILayout.HorizontalScope()) {
-                EditorGUILayout.LabelField(label, GUILayout.Width(320));
-                EditorGUILayout.LabelField(defined ? "defined" : "undefined", GUILayout.Width(80));
-            }
-            if (!defined) {
-                EditorGUILayout.HelpBox(hint, MessageType.None);
-            }
-        }
-
-        private static bool IsDefined(string symbol) {
-            // versionDefines aren't queryable directly at runtime; probe
-            // the calling assembly's effective defines instead. Each
-            // synced copy of this file lives in the downstream assembly
-            // it ships into, so the defines we see are the downstream's.
-            var defines = PlayerSettings.GetScriptingDefineSymbolsForGroup(
-                BuildPipeline.GetBuildTargetGroup(EditorUserBuildSettings.activeBuildTarget));
-            if (defines.Contains(symbol)) return true;
-            // versionDefines are NOT in the global define list -- we have
-            // to detect them via #if at compile time and surface a
-            // method that reads back. Use a private check via attribute
-            // reflection.
-            return WkDefineProbe.IsDefined(symbol);
-        }
-    }
-
-    internal static class WkDefineProbe {
-        public static bool IsDefined(string symbol) {
-            switch (symbol) {
-#if WK_NDMF
-                case "WK_NDMF": return true;
-#endif
-#if WK_VRC_SDK_AVATARS
-                case "WK_VRC_SDK_AVATARS": return true;
-#endif
-                default: return false;
-            }
         }
     }
 }
