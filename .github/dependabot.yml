@@ -5,6 +5,9 @@ updates:
   # Unity itself; the Unity Editor manages package dependencies on its own).
   - package-ecosystem: "github-actions"
     directory: "/"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 3
