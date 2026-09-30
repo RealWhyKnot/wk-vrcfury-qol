@@ -15,7 +15,7 @@ name: Release
 #   7. Creates a GitHub Release with both the zip and the rewritten
 #      package.json as separate assets (the listing builder fetches the
 #      bare package.json by name to avoid unzipping)
-#   8. Pushes the promoted CHANGELOG.md + wiki/Changelog.md back to main
+#   8. Pushes the promoted CHANGELOG.md back to main
 #      via the GraphQL createCommitOnBranch mutation (so the commit is
 #      signed server-side and clears the protected-branch rule)
 #   9. Pings the listing repo (RealWhyKnot/whyknot-vpm) to rebuild
@@ -104,7 +104,7 @@ jobs:
           echo "Package $name @ $pkg_version OK"
 
       - name: Promote Unreleased -> tagged section
-        # Rewrites CHANGELOG.md (and wiki/Changelog.md) so "## Unreleased"
+        # Rewrites CHANGELOG.md so "## Unreleased"
         # becomes "## [vTAG](release-url) -- DATE" and a fresh empty
         # Unreleased heading is inserted above. The promoted bytes are what
         # get shipped in the zip AND pushed back to main at the end. If
@@ -141,7 +141,7 @@ jobs:
 
           mkdir staging
           # Ship: package.json, README, LICENSE, CHANGELOG, Editor/, Runtime/ (if any)
-          # Drop: VCS, CI, contributor-facing, IDE noise, wiki, prior zip artifacts
+          # Drop: VCS, CI, contributor-facing, IDE noise, prior zip artifacts
           rsync -a \
             --exclude='.git' \
             --exclude='.github' \
@@ -151,7 +151,6 @@ jobs:
             --exclude='.vscode' \
             --exclude='.vs' \
             --exclude='.idea' \
-            --exclude='wiki' \
             --exclude='CONTRIBUTING.md' \
             --exclude='staging' \
             --exclude='*.zip' \
@@ -225,7 +224,7 @@ jobs:
             ${{ steps.beta.outputs.release_flags }}
 
       - name: Push promoted CHANGELOG back to main
-        # The promoted CHANGELOG.md + wiki/Changelog.md were rewritten on the
+        # The promoted CHANGELOG.md was rewritten on the
         # tag's checkout. Push those bytes back to main so the next push
         # starts with the fresh "## Unreleased" stub. Uses the same
         # createCommitOnBranch mutation pattern as changelog-append.yml so
@@ -244,7 +243,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          if ! git diff --quiet CHANGELOG.md wiki/Changelog.md; then
+          if ! git diff --quiet CHANGELOG.md; then
             echo "Promotion produced changes; pushing to main."
           else
             echo "No changelog changes to promote -- skipping push."
@@ -257,7 +256,6 @@ jobs:
           # changelog-append, but read main fresh just in case.
           expected_oid=$(gh api "repos/$GITHUB_REPOSITORY/git/refs/heads/main" --jq '.object.sha')
           changelog_b64=$(base64 -w 0 CHANGELOG.md)
-          wiki_b64=$(base64 -w 0 wiki/Changelog.md)
 
           headline="docs(changelog): promote Unreleased -> ${TAG_NAME} [skip changelog]"
           body=$(printf '%s\n%s' \
@@ -270,7 +268,6 @@ jobs:
             --arg body "$body" \
             --arg oid "$expected_oid" \
             --arg changelog "$changelog_b64" \
-            --arg wiki "$wiki_b64" \
             '{
               query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
               variables: {
@@ -279,8 +276,7 @@ jobs:
                   message: { headline: $headline, body: $body },
                   fileChanges: {
                     additions: [
-                      { path: "CHANGELOG.md",      contents: $changelog },
-                      { path: "wiki/Changelog.md", contents: $wiki }
+                      { path: "CHANGELOG.md", contents: $changelog }
                     ]
                   },
                   expectedHeadOid: $oid

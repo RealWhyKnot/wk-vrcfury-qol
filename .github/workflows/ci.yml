@@ -8,13 +8,11 @@ on:
   pull_request:
     branches: [main]
     paths-ignore:
-      - 'wiki/**'
       - '*.md'
       - 'LICENSE'
   push:
     branches: [main]
     paths-ignore:
-      - 'wiki/**'
       - '*.md'
       - 'LICENSE'
   workflow_dispatch:

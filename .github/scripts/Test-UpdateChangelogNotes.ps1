@@ -14,7 +14,7 @@ function Write-Utf8 {
 }
 
 try {
-    New-Item -ItemType Directory -Path (Join-Path $repo 'wiki') -Force | Out-Null
+    New-Item -ItemType Directory -Path $repo -Force | Out-Null
 
     $changelog = @'
 # Changelog
@@ -46,7 +46,6 @@ _No notable changes since the last release._
 '@
 
     Write-Utf8 -Path (Join-Path $repo 'CHANGELOG.md') -Content $changelog
-    Write-Utf8 -Path (Join-Path $repo 'wiki/Changelog.md') -Content $changelog
 
     $stable = (& $script -Mode Notes -ForVersion -Version 'v1.1.0' -RepoRoot $repo) -join "`n"
     if ($stable -notmatch 'Stable patch') { throw 'Stable notes did not include stable section.' }

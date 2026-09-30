@@ -1,15 +1,14 @@
 <#
 .SYNOPSIS
-  Maintains CHANGELOG.md (root, embedded into the in-app viewer) and
-  wiki/Changelog.md (synced to the GitHub Wiki) so the changelog stays
-  current without manual editing on every release.
+  Maintains CHANGELOG.md (root, embedded into the in-app viewer) so the
+  changelog stays current without manual editing on every release.
 
 .DESCRIPTION
   Three modes:
 
     Append   Parses commit subjects in -Range, buckets them by conventional-
              commit type, and inserts bullets under the "## Unreleased" heading
-             at the top of both files. Skips merge commits, bot commits, and
+             at the top of CHANGELOG.md. Skips merge commits, bot commits, and
              commits explicitly tagged "[skip changelog]" in the subject. Skips
              types that aren't user-visible (docs/build/ci/chore/test) so the
              changelog stays focused on behavior changes.
@@ -71,13 +70,9 @@ if (-not $RepoRoot) {
     $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 }
 
-# Both files are kept in lock-step. The root copy is the canonical CHANGELOG;
-# the wiki/ copy is mirrored to the GitHub Wiki by .github/workflows/wiki-sync.yml.
 $RootChangelog = Join-Path $RepoRoot 'CHANGELOG.md'
-$WikiChangelog = Join-Path $RepoRoot 'wiki/Changelog.md'
 
 if (-not (Test-Path $RootChangelog)) { throw "CHANGELOG.md not found at $RootChangelog" }
-if (-not (Test-Path $WikiChangelog)) { throw "wiki/Changelog.md not found at $WikiChangelog" }
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -389,9 +384,8 @@ if ($Mode -eq 'Append') {
     }
 
     Update-OneFile -Path $RootChangelog -NewBullets $newBullets
-    Update-OneFile -Path $WikiChangelog -NewBullets $newBullets
 
-    Write-Host "Appended $included entr(ies) to both CHANGELOG.md and wiki/Changelog.md."
+    Write-Host "Appended $included entr(ies) to CHANGELOG.md."
     return
 }
 
@@ -404,7 +398,7 @@ if ($Mode -eq 'Promote') {
     $today = (Get-Date -Format 'yyyy-MM-dd')
     $heading = "## [$Version](https://github.com/$Repo/releases/tag/$Version) -- $today"
 
-    foreach ($path in @($RootChangelog, $WikiChangelog)) {
+    foreach ($path in @($RootChangelog)) {
         $content = Read-TextUtf8 -Path $path
         $section = Find-UnreleasedSection -Content $content
         if (-not $section) {
@@ -459,14 +453,13 @@ if ($Mode -eq 'Promote') {
         Write-TextUtf8 -Path $path -Content (($newLines -join "`n"))
     }
 
-    Write-Host "Promoted Unreleased -> $heading in both files."
+    Write-Host "Promoted Unreleased -> $heading."
     return
 }
 
 # --- Mode: Notes -----------------------------------------------------------
 
 if ($Mode -eq 'Notes') {
-    # Read from the root copy -- same content as wiki copy by construction.
     $content = Read-TextUtf8 -Path $RootChangelog
 
     if ($ForVersion) {
