@@ -34,4 +34,3 @@ jobs:
       changelog-paths: |
         CHANGELOG.md
         wiki/Changelog.md
-      trigger-wiki-sync: true

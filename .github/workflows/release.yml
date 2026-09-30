@@ -301,18 +301,6 @@ jobs:
           echo "Promotion commit: $new_oid"
           echo "URL:              $new_url"
 
-      - name: Trigger wiki sync
-        if: success()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # wiki/Changelog.md changed under github-actions[bot] auth, which
-          # doesn't fire push triggers -- kick wiki-sync explicitly so the
-          # GitHub Wiki picks up the new versioned section.
-          gh workflow run wiki-sync.yml --ref main 2>&1 || \
-            echo "::warning::Could not trigger wiki-sync. The next wiki/** push will pick it up."
-
       - name: Trigger VPM listing rebuild
         continue-on-error: true
         env:
