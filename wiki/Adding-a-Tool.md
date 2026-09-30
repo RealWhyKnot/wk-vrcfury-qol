@@ -2,7 +2,7 @@
 
 A tool is a small `[InitializeOnLoad]` static class that registers itself with `VrcfQol`. The framework provides typed helpers so your tool never has to walk the reflection cache by hand.
 
-The existing tools in `Editor/Tools/` are short -- borrow freely. This page is the worked-example reference for every `Register*` API.
+The existing tools in `Editor/Tools/` are short, so borrow freely. This page has a worked example for every `Register*` API.
 
 ## Right-click on a flipbook page
 
@@ -26,7 +26,7 @@ internal static class MyPageTool {
 
 ```csharp
 VrcfQol.RegisterFlipbookPageButton(
-    text: "⇅",
+    text: "Down",
     tooltip: "Move this page down.",
     onClick: ctx => { /* reorder ctx.pages */ },
     order: 5
@@ -113,11 +113,11 @@ See `Editor/Tools/ReplaceReferencesTool.cs` and `ReplaceReferencesWindow.cs` for
 
 ## Rules of thumb
 
-- **`match`** decides whether the right-click menu item appears. Keep it cheap -- it runs on every right-click. Use `propertyPath` for positional matches, or `managedReferenceFullTypename` for `[SerializeReference]` types.
-- **`enabled`** (optional) greys out the menu item without hiding it -- useful for mutually-exclusive "Enable X" / "Disable X" pairs.
-- **`action`** does the work. Wrap destructive changes in `Undo.RegisterCompleteObjectUndo` / `Undo.DestroyObjectImmediate` so users can `Ctrl+Z` the change. Call `EditorUtility.SetDirty(target)` so Unity knows to save.
-- **Reflection helpers.** VRCFury's runtime types are `internal`, so the framework ships a resolved-by-name reflection cache at `VrcfQol.Reflection.ToggleType`, `.PagesField`, etc. Use it instead of rolling your own.
-- **Optional fields.** When you add a new reflected field that some VRCFury versions don't have, treat it as `null`-tolerant -- call sites should null-check and either skip the work or surface a clean message. See `AutoGlobalParameterTool.SyncAll` for the pattern.
-- **No `[CustomPropertyDrawer]`.** Drawer overrides fight VRCFury's own drawers and break across versions. Use the inline-button registry (`RegisterFlipbookPageButton`) or the inspector banner pattern in `VrcfQolInspectorOverlay` instead.
+- `match` decides whether the right-click menu item appears. Keep it cheap, since it runs on every right-click. Use `propertyPath` for positional matches, or `managedReferenceFullTypename` for `[SerializeReference]` types.
+- `enabled` (optional) greys out the menu item without hiding it, which suits mutually-exclusive "Enable X" / "Disable X" pairs.
+- `action` does the work. Wrap destructive changes in `Undo.RegisterCompleteObjectUndo` / `Undo.DestroyObjectImmediate` so users can `Ctrl+Z` the change. Call `EditorUtility.SetDirty(target)` so Unity knows to save.
+- Reflection helpers: VRCFury's runtime types are `internal`, so the framework ships a resolved-by-name reflection cache at `VrcfQol.Reflection.ToggleType`, `.PagesField`, etc. Use it instead of rolling your own.
+- Optional fields: when you add a new reflected field that some VRCFury versions don't have, treat it as `null`-tolerant: call sites should null-check and either skip the work or surface a clean message. See `AutoGlobalParameterTool.SyncAll` for the pattern.
+- No `[CustomPropertyDrawer]`: drawer overrides fight VRCFury's own drawers and break across versions. Use the inline-button registry (`RegisterFlipbookPageButton`) or the inspector banner pattern in `VrcfQolInspectorOverlay` instead.
 
-The framework is small (~600 LoC). Reading `Editor/VrcfQol.cs` end-to-end is the fastest way to internalise the API.
+The framework is about 600 lines. Reading `Editor/VrcfQol.cs` end to end is the fastest way to learn the API.

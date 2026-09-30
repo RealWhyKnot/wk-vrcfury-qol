@@ -1,33 +1,22 @@
-# VRCFury QoL Wiki
+# VRCFury QoL docs
 
-`wk-vrcfury-qol` is a small framework + collection of Unity Editor tools that add convenience actions directly to the [VRCFury](https://vrcfury.com/) component inspector. Tools appear *where you're already working* -- right-click a page, click a button on a flipbook row, drop in two objects to swap references -- instead of hiding behind a separate window.
+`wk-vrcfury-qol` is a small framework and a set of Unity Editor tools that add actions directly to the [VRCFury](https://vrcfury.com/) component inspector. Right-click a page, click a button on a flipbook row, drop in two objects to swap references. No separate window.
 
-The [README](https://github.com/RealWhyKnot/wk-vrcfury-qol/blob/main/README.md) is the quick-start; this wiki goes deeper.
+The [README](../README.md) is the quick start.
 
-## How it works (60 seconds)
+## How it works
 
-VRCFury's runtime types (`VF.Model.VRCFury`, `VF.Model.Feature.Toggle`, etc.) are marked `internal`, so a script in `Assets/Editor/` can't reference them directly. `wk-vrcfury-qol` does two things:
+VRCFury's runtime types (`VF.Model.VRCFury`, `VF.Model.Feature.Toggle`, etc.) are `internal`, so a script in `Assets/Editor/` can't reference them. The package works around that in two parts:
 
-1. **A reflection cache** (`Editor/VrcfQol.cs` -> `ReflectionCache`) resolves VRCFury's types and fields by name on first use, caches them, and exposes typed handles to tools. If VRCFury renames a field in a future version, the cache returns null and tools degrade gracefully (banner explains what's missing, right-click menu silently drops affected items) -- no crashes.
-2. **A registration API** lets each tool plug in with a single `[InitializeOnLoad]` static class. Tools never touch the inspector's visual tree directly. Right-click items ride on `EditorApplication.contextualPropertyMenu`, and inline buttons / banners are injected by a small UIElements overlay (`VrcfQolInspectorOverlay.cs`) that scans inspector windows every ~250 ms and attaches widgets next to recognisable labels.
+1. A reflection cache (`Editor/VrcfQol.cs`, `ReflectionCache`) resolves VRCFury's types and fields by name on first use and hands typed handles to tools. If a VRCFury update renames a field, the cache returns null and tools degrade: the banner says what's missing and the affected right-click items drop out. Nothing crashes.
+2. A registration API lets each tool plug in with one `[InitializeOnLoad]` static class. Tools never touch the inspector's visual tree. Right-click items ride on `EditorApplication.contextualPropertyMenu`, and a small UIElements overlay (`VrcfQolInspectorOverlay.cs`) scans inspector windows every ~250 ms and attaches buttons and banners next to recognisable labels.
 
-The full picture is on [[Architecture]].
+[Architecture](Architecture.md) has the details.
 
-## Read these first
+## Pages
 
-- **[[Installation]]** -- drop-in instructions and the hot-reload bootstrap step
-- **[[Tools-Overview]]** -- every shipping tool, what it does, where to find it
-- **[[Architecture]]** -- framework design: registration, reflection, overlay
-- **[[Adding-a-Tool]]** -- developer guide with worked examples for every `Register*` API
-- **[[Troubleshooting]]** -- common failure modes and what to check first
-
-## What's in the box
-
-- Move all VRCFury components between GameObjects (whole-component or merge-into-one mode)
-- Replace object references in bulk across the selected hierarchy
-- Auto-sync `useGlobalParam` / `globalParam` on every Toggle (with per-toggle opt-out)
-- Migrate child VRCFury Toggles into a parent Flipbook
-- Duplicate flipbook pages in place (inline button) or to the end (right-click)
-- Hot-reload watcher + per-assembly compile log
-
-See [[Tools-Overview]] for screenshots and details.
+- [Installation](Installation.md): drop-in steps and the hot-reload bootstrap
+- [Tools Overview](Tools-Overview.md): every tool and where to find it
+- [Architecture](Architecture.md): registration, reflection, overlay
+- [Adding a Tool](Adding-a-Tool.md): worked examples for every `Register*` API
+- [Troubleshooting](Troubleshooting.md): what to check first

@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Wiki -- Troubleshooting
-    url: https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Troubleshooting
-    about: Common failure modes are documented here. Check before filing.
-  - name: Wiki -- Tools Overview
-    url: https://github.com/RealWhyKnot/wk-vrcfury-qol/wiki/Tools-Overview
-    about: How each tool is supposed to work, with screenshots. Make sure your usage matches before reporting a bug.
+  - name: Troubleshooting
+    url: https://github.com/RealWhyKnot/wk-vrcfury-qol/blob/main/wiki/Troubleshooting.md
+    about: Common failure modes. Check before filing.
+  - name: Tools Overview
+    url: https://github.com/RealWhyKnot/wk-vrcfury-qol/blob/main/wiki/Tools-Overview.md
+    about: How each tool is meant to work. Check your usage against it before reporting a bug.

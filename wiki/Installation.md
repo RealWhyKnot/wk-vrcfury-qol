@@ -1,10 +1,10 @@
 # Installation
 
-`wk-vrcfury-qol` ships as a flat folder of `.cs` files compiled by Unity itself. There's no asmdef, no package manifest, no native binaries.
+`wk-vrcfury-qol` is a flat folder of `.cs` files that Unity compiles itself. No asmdef, no package manifest, no native binaries. For the VCC route, see the [README](../README.md#installation).
 
-## Option A -- Drop into your project (simplest)
+## Option A: drop it into your project
 
-Copy the `Editor/` folder into your Unity project under any path that ends in (or contains) `Editor/`. Unity will pick it up as an editor-only assembly automatically.
+Copy the `Editor/` folder into your Unity project under any path that ends in or contains `Editor/`. Unity picks it up as an editor-only assembly.
 
 ```
 Assets/
@@ -22,37 +22,37 @@ Assets/
         ReplaceReferencesWindow.cs
 ```
 
-## Option B -- Symlink for live development
+## Option B: symlink for live development
 
-Clone the repo somewhere outside your Unity project, then symlink the `Editor/` folder into the project. Edits in the repo apply to the live project without copy-pasting.
+Clone the repo outside your Unity project and link its `Editor/` folder in. Edits in the repo apply to the live project without copying.
 
-**Windows (PowerShell, run as admin):**
+Windows (PowerShell, run as admin):
 ```powershell
 New-Item -ItemType Junction -Path "C:\Path\To\YourProject\Assets\VrcfQol" -Target "C:\Path\To\wk-vrcfury-qol\Editor"
 ```
 
-**Linux / macOS:**
+Linux / macOS:
 ```sh
 ln -s /path/to/wk-vrcfury-qol/Editor /path/to/YourProject/Assets/VrcfQol
 ```
 
 ## Hot-reload bootstrap
 
-After installing for the first time, **focus Unity once** so it compiles the new scripts. From then on the hot-reload watcher watches this package's own source files and triggers `AssetDatabase.Refresh()` whenever one changes -- even when Unity isn't focused. It deliberately does not watch unrelated `Assets/` or third-party package files.
+After the first install, focus Unity once so it compiles the new scripts. From then on the hot-reload watcher runs `AssetDatabase.Refresh()` whenever one of this package's source files changes, even when Unity is unfocused. It doesn't watch unrelated `Assets/` or third-party package files.
 
-The hot-reload tool also writes per-session compile logs under `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/`. Tail the current `session-*.log` to watch compiles in real time:
+It also writes per-session compile logs under `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/`. Tail the current `session-*.log` to watch compiles:
 
 ```powershell
 Get-Content "$env:LocalAppData\WhyKnot\Logs\dev.whyknot.wk-vrcfury-qol.Editor.hotreload\session-*.log" -Wait
 ```
 
-Compile errors include the file path and line/column so they're easy to grep.
+Compile errors include the file path and line and column.
 
 ## Compatibility
 
-- **Unity 2022.3.x** -- the version we test against on `D:\WhyKnot Stuff\VRChat\Avatars\Ume\` and similar avatar projects.
-- **VRCFury 1.1303.x** -- the latest version we explicitly verified. Older versions usually work; if a tool's reflection cache fails to resolve a field, the tool silently no-ops or shows a clean error dialog (see [[Troubleshooting]]).
+- Unity 2022.3.x is what I test against.
+- VRCFury 1.1303.x is the latest version I've checked. Older versions usually work. If the reflection cache can't resolve a field, the tool does nothing or shows an error dialog (see [Troubleshooting](Troubleshooting.md)).
 
 ## Uninstalling
 
-Delete the folder you installed into. EditorPrefs entries (per-toggle opt-outs from [[Tools-Overview#auto-global-parameter|the Auto Global Parameter tool]]) persist after uninstall -- they're harmless but if you want to clean them, search EditorPrefs for keys starting with `VrcfQol.AutoUpdateParam.OptOut.`.
+Delete the folder you installed into. Per-toggle opt-outs from the [Auto Global Parameter](Tools-Overview.md#auto-global-parameter) tool stay in EditorPrefs. They're harmless, but you can remove them by searching EditorPrefs for keys starting with `VrcfQol.AutoUpdateParam.OptOut.`.
