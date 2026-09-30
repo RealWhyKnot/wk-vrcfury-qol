@@ -2,11 +2,6 @@
 
 Bug reports, feature requests and pull requests are welcome. Open an issue or PR against this repo.
 
-## Before you start
-
-- [Architecture](wiki/Architecture.md) explains how tools, the reflection cache and the inspector overlay fit together.
-- For a bug, check [Troubleshooting](wiki/Troubleshooting.md) first.
-
 ## Dev loop
 
 There's no build system. `wk-vrcfury-qol` is a flat folder of `.cs` files that Unity compiles itself.
@@ -27,15 +22,10 @@ ln -s /path/to/wk-vrcfury-qol/Editor /path/to/YourProject/Assets/VrcfQol
 
 Once linked, `VrcfQolHotReload.cs` picks up `.cs` saves and runs `AssetDatabase.Refresh()` even when Unity isn't focused. Tail `<ProjectRoot>/Logs/VrcfQolHotReload.log` to watch compiles. Focus Unity once after the first install so it compiles the scripts; after that the watcher takes over.
 
-## Docs
-
-The docs live in `wiki/` and change through PRs like code.
-
 ## Pull requests
 
 - Branch from `main` and open the PR against `main`.
 - The [PR template](.github/PULL_REQUEST_TEMPLATE.md) fills in the description. Be honest on the checklist, especially "compiles in Unity 2022.3.x with no console errors".
-- If you touched a tool, update its entry in [`wiki/Tools-Overview.md`](wiki/Tools-Overview.md). A screenshot helps for UI changes.
 - If you added reflection-cache fields, check that they degrade gracefully when missing. `Editor/VrcfQol.cs` has examples of optional fields.
 - Keep PRs focused.
 - VRCFury internals change between releases. If your PR depends on a new field, say which VRCFury version you tested against.

@@ -8,7 +8,6 @@
 
 - [ ] Compiles in Unity 2022.3.x with no new console errors or warnings.
 - [ ] Tested in the editor against a VRCFury avatar, including Undo (Ctrl+Z) for any destructive operation.
-- [ ] If a tool was added or its UX changed, its section in [`wiki/Tools-Overview.md`](../wiki/Tools-Overview.md) is updated.
 - [ ] If reflection-cache fields were added or changed, optional fields are null-checked at every call site.
 - [ ] No leftover `Debug.Log` noise in production code paths.
 

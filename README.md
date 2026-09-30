@@ -6,8 +6,6 @@
 
 Quality-of-life Editor tools for [VRCFury](https://vrcfury.com/). The tools show up where you're already working: right-click a page, click a button on a flipbook row, see a banner on a Toggle, drop in two objects to swap references. No separate window to dig through.
 
-Adding a new tool is usually one small file with an `[InitializeOnLoad]` registration. See [Adding a Tool](wiki/Adding-a-Tool.md).
-
 ## Tools
 
 - Move all VRCFury components between GameObjects in one Undo step. "Move whole components" keeps the serialization shape; "Merge into one component" puts every feature on a single carrier object. Right-click a GameObject -> WhyKnot -> wk-vrcfury-qol -> Move all VRCFury components to...
@@ -19,8 +17,6 @@ Adding a new tool is usually one small file with an `[InitializeOnLoad]` registr
 - Duplicate a flipbook page below the current one with the inline `Duplicate` button next to each `Page #N` label, or to the end from the right-click menu.
 - Duplicate one state action in place with `Duplicate item`, or use `Copy to page` on a flipbook page action to append just that BlendShape, Material Swap or other action to another page.
 - Hot reload and logs. Watches this package's own source files and runs `AssetDatabase.Refresh()` even when Unity is unfocused. It doesn't watch the rest of the project. Session logs go to `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol/`, and hot-reload sessions to `%LocalAppData%/WhyKnot/Logs/dev.whyknot.wk-vrcfury-qol.Editor.hotreload/`. Open the logs from Window -> WhyKnot -> VRCFury QoL -> Logs, and check the watcher at Window -> WhyKnot -> VRCFury QoL -> Hot Reload Status.
-
-Each tool is covered in more detail in [Tools Overview](wiki/Tools-Overview.md).
 
 ## Installation
 
@@ -38,18 +34,11 @@ Unity compiles the package into a `dev.whyknot.wk-vrcfury-qol.Editor` assembly. 
 
 For Unity projects not managed by VCC, download `dev.whyknot.wk-vrcfury-qol-X.Y.Z.zip` from [the latest release](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/latest) and unzip it into `Packages/dev.whyknot.wk-vrcfury-qol/`, so that `Packages/dev.whyknot.wk-vrcfury-qol/package.json` exists. Unity's Package Manager picks it up on the next refresh. VRCFury must already be in the project.
 
-Tested against VRCFury **1.1303.x** on Unity **2022.3**. Per-clone setup, like the hot-reload bootstrap, is in [Installation](wiki/Installation.md).
+Tested against VRCFury **1.1303.x** on Unity **2022.3**.
 
 ## Adding your own tool
 
-A tool is a small `[InitializeOnLoad]` static class that registers itself with `VrcfQol`. The framework has typed helpers, so you don't walk the reflection cache yourself. [Adding a Tool](wiki/Adding-a-Tool.md) has examples for every `Register*` method.
-
-## Docs
-
-- [Tools Overview](wiki/Tools-Overview.md)
-- [Architecture](wiki/Architecture.md): how the framework hooks VRCFury through reflection and a UI overlay
-- [Adding a Tool](wiki/Adding-a-Tool.md)
-- [Troubleshooting](wiki/Troubleshooting.md)
+A tool is a small `[InitializeOnLoad]` static class that registers itself with `VrcfQol`. The framework has typed helpers, so you don't walk the reflection cache yourself.
 
 ## Back up first
 

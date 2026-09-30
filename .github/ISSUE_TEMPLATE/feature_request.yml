@@ -3,11 +3,6 @@ description: Suggest an idea for this project.
 title: "[feature] "
 labels: ["enhancement"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Check the [Tools Overview](https://github.com/RealWhyKnot/wk-vrcfury-qol/blob/main/wiki/Tools-Overview.md) first to see whether the behaviour you want already exists.
-
   - type: textarea
     id: problem
     attributes:

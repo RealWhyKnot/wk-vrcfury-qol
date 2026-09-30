@@ -3,11 +3,6 @@ description: Something is broken.
 title: "[bug] "
 labels: ["bug"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Before filing, check [Troubleshooting](https://github.com/RealWhyKnot/wk-vrcfury-qol/blob/main/wiki/Troubleshooting.md) for common failure modes.
-
   - type: textarea
     id: what-happened
     attributes:
