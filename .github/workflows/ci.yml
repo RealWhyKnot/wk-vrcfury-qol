@@ -21,8 +21,13 @@ permissions:
   contents: read
 
 jobs:
-  actionlint:
-    name: actionlint (workflows)
+  checks:
+    permissions:
+      contents: read
+    uses: RealWhyKnot/workflows/.github/workflows/repo-checks.yml@v1
+
+  changelog-notes:
+    name: Changelog release notes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -30,5 +35,3 @@ jobs:
       - name: Test changelog release notes
         shell: pwsh
         run: ./.github/scripts/Test-UpdateChangelogNotes.ps1
-      - name: Run actionlint
-        uses: raven-actions/actionlint@v2
