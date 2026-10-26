@@ -12,7 +12,8 @@
 //   string yourself, VRCFury is forced to keep using it.
 //
 // What this tool does:
-//   For every VRCFury Toggle in open scenes it enforces, every ~0.5 s:
+//   For every VRCFury Toggle in open scenes that has no globalParam of its
+//   own yet, it sets, every ~0.5 s:
 //       useGlobalParam = true
 //       globalParam    = toggle.name   (i.e. the menu path)
 //
@@ -22,10 +23,10 @@
 //   When two Toggles on the same avatar share a menu path (Ctrl+D duplicates,
 //   or two submenus that happen to end in the same leaf), naively writing
 //   globalParam = name would produce a collision and VRCFury would error at
-//   build. To avoid that, the tool computes per-avatar assignments: the first
-//   Toggle (by GlobalObjectId order) keeps the bare menu-path name, later
-//   Toggles get " 2", " 3", ... suffixes. The choice of who-wins is stable
-//   across editor restarts because GlobalObjectId is stable.
+//   build. To avoid that, the tool computes per-avatar assignments: a Toggle
+//   that already held the name on the previous tick keeps it, otherwise the
+//   first Toggle (by GlobalObjectId order) keeps the bare menu-path name, and
+//   later Toggles get " 2", " 3", ... suffixes.
 //
 //   It's NOT forced blindly: each toggle can opt out via:
 //       - Right-click -> "WhyKnot / wk-vrcfury-qol / Disable global parameter sync",
@@ -75,6 +76,13 @@ namespace UmeVrcfQol.Tools {
         public string MenuPath;
         public string CurrentGlobalParam;
         public bool IsOptedOut;
+        public bool UsesGlobalParam;
+        public bool AssignedByTool;
+        public bool HeldPreviously;
+
+        public bool IsPinned =>
+            !IsOptedOut && UsesGlobalParam && !AssignedByTool
+            && !string.IsNullOrWhiteSpace(CurrentGlobalParam);
     }
 
     [InitializeOnLoad]
@@ -90,6 +98,9 @@ namespace UmeVrcfQol.Tools {
         // transitions (suffix appearing / changing / disappearing), never on
         // every tick of a stable disambiguation.
         private static readonly Dictionary<string, string> _lastWritten =
+            new Dictionary<string, string>();
+
+        private static readonly Dictionary<string, string> _lastSeen =
             new Dictionary<string, string>();
 
         static AutoGlobalParameterTool() {
@@ -193,9 +204,14 @@ namespace UmeVrcfQol.Tools {
                 foreach (var pair in kv.Value) infos.Add(pair.info);
                 var assignments = ComputeAssignments(infos);
                 foreach (var pair in kv.Value) {
-                    if (pair.info.IsOptedOut) continue;
-                    if (!assignments.TryGetValue(pair.info.GlobalObjectId, out var desired)) continue;
-                    WriteAssignment(pair.component, desired);
+                    var id = pair.info.GlobalObjectId;
+                    if (!pair.info.IsOptedOut
+                        && assignments.TryGetValue(id, out var desired)
+                        && WriteAssignment(pair.component, desired, pair.info)) {
+                        _lastSeen[id] = desired;
+                    } else {
+                        _lastSeen[id] = pair.info.CurrentGlobalParam;
+                    }
                 }
             }
         }
@@ -220,7 +236,10 @@ namespace UmeVrcfQol.Tools {
             // it's currently flagged opted-out" (used after clearing the opt-out
             // via banner / right-click). In that case treat it as non-opted-out
             // for this compute pass so it actually gets an assignment.
-            if (force) ownInfo.IsOptedOut = false;
+            if (force) {
+                ownInfo.IsOptedOut = false;
+                ownInfo.UsesGlobalParam = false;
+            }
 
             var root = PreviewTool.FindAvatarRoot(c) ?? c.gameObject;
             var infos = CollectAvatarToggles(root);
@@ -234,7 +253,7 @@ namespace UmeVrcfQol.Tools {
 
             var assignments = ComputeAssignments(infos);
             if (!assignments.TryGetValue(ownInfo.GlobalObjectId, out var desired)) return;
-            WriteAssignment(c, desired);
+            if (WriteAssignment(c, desired, ownInfo)) _lastSeen[ownInfo.GlobalObjectId] = desired;
         }
 
         /// <summary>
@@ -268,11 +287,13 @@ namespace UmeVrcfQol.Tools {
 
         /// <summary>
         /// For each non-opted-out Toggle, pick a globalParam that does not
-        /// collide with any other Toggle on the same avatar. The first Toggle
-        /// (by GlobalObjectId order) keeps the bare menu-path; later ones get
-        /// " 2", " 3", ... suffixes. Opted-out Toggles' current globalParam
-        /// values seed the taken set; they themselves do not get an assignment
-        /// in the returned map.
+        /// collide with any other Toggle on the same avatar. A pinned Toggle
+        /// (see <see cref="ToggleInfo.IsPinned"/>) wants its current value,
+        /// every other Toggle wants its menu path. Wanted names go first to
+        /// Toggles that already held them on the previous tick, then to pinned
+        /// Toggles, then by GlobalObjectId order. Toggles that lose get the
+        /// menu path or the next free " 2", " 3", ... suffix. Opted-out Toggles' current values
+        /// seed the taken set; they themselves get no assignment.
         /// </summary>
         internal static IReadOnlyDictionary<string, string> ComputeAssignments(
             IReadOnlyList<ToggleInfo> toggles
@@ -280,24 +301,33 @@ namespace UmeVrcfQol.Tools {
             var result = new Dictionary<string, string>();
             var taken = new HashSet<string>();
 
-            // Seed: opted-out toggles' current values are immutable from this
-            // tool's perspective, so we must route around them.
             foreach (var t in toggles) {
                 if (t.IsOptedOut && !string.IsNullOrEmpty(t.CurrentGlobalParam)) {
                     taken.Add(t.CurrentGlobalParam);
                 }
             }
 
-            // Stable order: GlobalObjectId is stable across editor restarts and
-            // does not flip when a sibling component is added/removed (unlike
-            // component index on GameObject) or when a parent GameObject is
-            // renamed (unlike hierarchy path).
-            var ordered = toggles
+            var active = toggles
                 .Where(t => !t.IsOptedOut)
                 .OrderBy(t => t.GlobalObjectId, StringComparer.Ordinal)
                 .ToList();
 
-            foreach (var t in ordered) {
+            string Wanted(ToggleInfo t) => t.IsPinned ? t.CurrentGlobalParam : t.MenuPath;
+
+            var claimOrder = active
+                .OrderBy(t => t.HeldPreviously && Wanted(t) == t.CurrentGlobalParam ? 0 : t.IsPinned ? 1 : 2)
+                .ThenBy(t => t.GlobalObjectId, StringComparer.Ordinal)
+                .ToList();
+
+            foreach (var t in claimOrder) {
+                var wanted = Wanted(t);
+                if (string.IsNullOrWhiteSpace(wanted) || taken.Contains(wanted)) continue;
+                result[t.GlobalObjectId] = wanted;
+                taken.Add(wanted);
+            }
+
+            foreach (var t in active) {
+                if (result.ContainsKey(t.GlobalObjectId)) continue;
                 if (string.IsNullOrWhiteSpace(t.MenuPath)) continue;
                 var desired = t.MenuPath;
                 if (taken.Contains(desired)) {
@@ -325,32 +355,39 @@ namespace UmeVrcfQol.Tools {
             if (content == null || content.GetType() != r.ToggleType) return false;
 
             string menuPath, currentParam;
+            bool usesGlobalParam;
             try {
                 menuPath = (string)r.ToggleNameField.GetValue(content) ?? "";
                 currentParam = (string)r.ToggleGlobalParamField.GetValue(content) ?? "";
+                usesGlobalParam = r.ToggleUseGlobalParamField != null
+                    && (bool)r.ToggleUseGlobalParamField.GetValue(content);
             } catch { return false; }
 
+            var id = GlobalObjectId.GetGlobalObjectIdSlow(c).ToString();
             info = new ToggleInfo {
-                GlobalObjectId = GlobalObjectId.GetGlobalObjectIdSlow(c).ToString(),
+                GlobalObjectId = id,
                 MenuPath = menuPath,
                 CurrentGlobalParam = currentParam,
                 IsOptedOut = IsOptedOut(c),
+                UsesGlobalParam = usesGlobalParam,
+                AssignedByTool = _lastWritten.TryGetValue(id, out var written) && written == currentParam,
+                HeldPreviously = _lastSeen.TryGetValue(id, out var seen) && seen == currentParam,
             };
             return true;
         }
 
-        private static void WriteAssignment(Component c, string desired) {
-            if (c == null || desired == null) return;
+        private static bool WriteAssignment(Component c, string desired, ToggleInfo info) {
+            if (c == null || desired == null) return false;
             var r = VrcfQol.Reflection;
 
             object content;
             try { content = r.ContentField.GetValue(c); }
-            catch { return; }
-            if (content == null || content.GetType() != r.ToggleType) return;
+            catch { return false; }
+            if (content == null || content.GetType() != r.ToggleType) return false;
 
             var useField = r.ToggleUseGlobalParamField;
             var paramField = r.ToggleGlobalParamField;
-            if (useField == null || paramField == null) return;
+            if (useField == null || paramField == null) return false;
 
             bool use;
             string currentParam, name;
@@ -358,11 +395,11 @@ namespace UmeVrcfQol.Tools {
                 use = (bool)useField.GetValue(content);
                 currentParam = (string)paramField.GetValue(content) ?? "";
                 name = (string)r.ToggleNameField.GetValue(content) ?? "";
-            } catch { return; }
+            } catch { return false; }
 
             // Don't force a name onto an unnamed toggle -- "" isn't a valid
             // parameter name and would only noisy SetDirty.
-            if (string.IsNullOrWhiteSpace(name)) return;
+            if (string.IsNullOrWhiteSpace(name)) return false;
 
             var changed = false;
             if (!use) {
@@ -371,12 +408,20 @@ namespace UmeVrcfQol.Tools {
             }
             if (currentParam != desired) {
                 paramField.SetValue(content, desired);
-                LogIfDisambiguationTransition(c, name, desired);
+                if (use && !info.AssignedByTool && !string.IsNullOrWhiteSpace(currentParam)) {
+                    VrcfQolLogger.Instance.Warning(
+                        $"Renamed Global Parameter on '{c.gameObject.name}' from '{currentParam}' to '{desired}'. " +
+                        "VRChat treats it as a new parameter, so its saved value resets.");
+                } else {
+                    LogIfDisambiguationTransition(c, name, desired);
+                }
+                _lastWritten[GlobalObjectId.GetGlobalObjectIdSlow(c).ToString()] = desired;
                 changed = true;
             }
             if (changed) {
-                EditorUtility.SetDirty(c);
+                VrcfQol.MarkModified(c);
             }
+            return true;
         }
 
         private static void LogIfDisambiguationTransition(Component c, string menuPath, string newWritten) {
@@ -389,7 +434,6 @@ namespace UmeVrcfQol.Tools {
                     $"Auto-disambiguated globalParam on '{c.gameObject.name}': " +
                     $"'{menuPath}' already used on this avatar; using '{newWritten}' instead.");
             }
-            _lastWritten[id] = newWritten;
         }
     }
 }

@@ -37,25 +37,28 @@ namespace UmeVrcfQol {
         internal static bool TryResolveFlipbookFromPage(SerializedProperty pageProp, out FlipbookContext ctx) {
             ctx = default;
             if (pageProp == null) return false;
+            return TryResolveFlipbookFromPagePath(
+                pageProp.serializedObject?.targetObject as Component, pageProp.propertyPath, out ctx);
+        }
+
+        internal static bool TryResolveFlipbookFromPagePath(Component comp, string pagePath, out FlipbookContext ctx) {
+            ctx = default;
             if (!Reflection.TryEnsure(out _)) return false;
             var r = Reflection;
 
-            var m = PagePathRegex.Match(pageProp.propertyPath ?? "");
+            var m = PagePathRegex.Match(pagePath ?? "");
             if (!m.Success) return false;
             if (!int.TryParse(m.Groups[1].Value, out var pageIndex)) return false;
 
-            var comp = pageProp.serializedObject?.targetObject as Component;
             if (comp == null || comp.GetType() != r.VRCFuryType) return false;
 
             var content = r.ContentField.GetValue(comp);
             if (content == null || content.GetType() != r.ToggleType) return false;
 
-            var state = r.ToggleStateField.GetValue(content);
-            var toggleActions = r.StateActionsField.GetValue(state) as IList;
-            var fb = FindFlipbookAction(toggleActions);
-            if (fb == null) return false;
+            var fb = Tools.DuplicateActionTool.Walk(comp, pagePath.Substring(0, m.Index));
+            if (fb == null || fb.GetType() != r.FlipbookBuilderActionType) return false;
             var pages = r.PagesField.GetValue(fb) as IList;
-            if (pages == null) return false;
+            if (pages == null || pageIndex >= pages.Count) return false;
 
             ctx = new FlipbookContext {
                 vrcfComponent = comp,

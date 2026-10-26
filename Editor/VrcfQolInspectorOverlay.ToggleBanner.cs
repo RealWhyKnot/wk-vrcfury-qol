@@ -156,6 +156,11 @@ namespace UmeVrcfQol {
                     }
                 }
             } else if (foundMine
+                       && mine.IsPinned
+                       && mine.CurrentGlobalParam != mine.MenuPath) {
+                headline = $"wk-vrcfury-qol: Global Parameter kept as '{mine.CurrentGlobalParam}'";
+                tooltip = "This Toggle already had this Global Parameter, so it isn't renamed to match the Menu Path. Renaming it would reset its saved value in VRChat. To rename it anyway, use Sync global parameter now from the WhyKnot right-click menu.";
+            } else if (foundMine
                        && !string.IsNullOrEmpty(mine.MenuPath)
                        && !string.IsNullOrEmpty(mine.CurrentGlobalParam)
                        && mine.CurrentGlobalParam != mine.MenuPath) {
@@ -163,7 +168,7 @@ namespace UmeVrcfQol {
                 tooltip = $"Another Toggle on this avatar already uses the menu-path name '{mine.MenuPath}'. To avoid a VRCFury build error, this Toggle's globalParam was set to '{mine.CurrentGlobalParam}'. Rename the menu path to take ownership of '{mine.MenuPath}' again.";
             } else {
                 headline = "wk-vrcfury-qol: Global Parameter auto-synced with Menu Path";
-                tooltip = "Keeps 'Use Global Parameter' checked and 'globalParam' equal to the Menu Path so VRCFury cannot wipe custom work during avatar updates.";
+                tooltip = "Keeps 'Use Global Parameter' checked and sets 'globalParam' to the Menu Path so VRCFury cannot wipe custom work during avatar updates. A Global Parameter that was already set when the scene opened is left alone.";
             }
 
             var label = new Label(headline);
@@ -195,7 +200,7 @@ namespace UmeVrcfQol {
                 text = optedOut ? "Turn on" : "Turn off"
             };
             optBtn.tooltip = optedOut
-                ? "Resume auto-syncing the Global Parameter with the Menu Path."
+                ? "Resume auto-syncing the Global Parameter with the Menu Path. If they differ, the Global Parameter is renamed to match."
                 : "Stop auto-syncing the Global Parameter. The current value will not be touched.";
             EditorElementWalker.ApplyInlineButtonStyle(optBtn);
             banner.Add(optBtn);

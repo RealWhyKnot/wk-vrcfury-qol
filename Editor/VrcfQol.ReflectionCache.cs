@@ -29,9 +29,6 @@ namespace UmeVrcfQol {
             public Type StateType { get; private set; }
             public Type FlipbookBuilderActionType { get; private set; }
             public Type FlipbookPageType { get; private set; }
-            // Optional - present in versions that still expose a top-level `config.features`
-            // list. Null on newer versions that switched to a single `content` slot.
-            public Type ConfigType { get; private set; }
 
             public FieldInfo ContentField { get; private set; }
             public FieldInfo ToggleNameField { get; private set; }
@@ -42,16 +39,54 @@ namespace UmeVrcfQol {
             public FieldInfo StateActionsField { get; private set; }
             public FieldInfo PagesField { get; private set; }
             public FieldInfo PageStateField { get; private set; }
-            // Optional - see ConfigType.
-            public FieldInfo ConfigField { get; private set; }
-            public FieldInfo FeaturesField { get; private set; }
+
+            private readonly Func<Assembly> _findAssembly;
+            private bool _ready;
+
+            internal ReflectionCache() : this(FindLoadedVrcfuryAssembly) { }
+
+            internal ReflectionCache(Func<Assembly> findAssembly) {
+                _findAssembly = findAssembly;
+            }
+
+            private static Assembly FindLoadedVrcfuryAssembly() {
+                return AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(a => a.GetName().Name == "VRCFury");
+            }
 
             public bool TryEnsure(out string error) {
                 error = null;
-                if (VRCFuryType != null) return true;
+                if (_ready) return true;
+                if (Resolve(out error)) {
+                    _ready = true;
+                    return true;
+                }
+                Reset();
+                return false;
+            }
 
-                VrcfuryAsm = AppDomain.CurrentDomain.GetAssemblies()
-                    .FirstOrDefault(a => a.GetName().Name == "VRCFury");
+            private void Reset() {
+                VrcfuryAsm = null;
+                VRCFuryType = null;
+                ToggleType = null;
+                StateType = null;
+                FlipbookBuilderActionType = null;
+                FlipbookPageType = null;
+                ContentField = null;
+                ToggleNameField = null;
+                ToggleStateField = null;
+                ToggleSliderField = null;
+                ToggleUseGlobalParamField = null;
+                ToggleGlobalParamField = null;
+                StateActionsField = null;
+                PagesField = null;
+                PageStateField = null;
+            }
+
+            private bool Resolve(out string error) {
+                error = null;
+
+                VrcfuryAsm = _findAssembly?.Invoke();
                 if (VrcfuryAsm == null) {
                     error = "VRCFury runtime assembly ('VRCFury') not found. Is VRCFury installed?";
                     return false;
@@ -85,21 +120,11 @@ namespace UmeVrcfQol {
                 if (ContentField == null || ToggleNameField == null || ToggleStateField == null ||
                     StateActionsField == null || PagesField == null || PageStateField == null) {
                     error = "One or more expected fields on VRCFury model types were not found.";
-                    VRCFuryType = null;
                     return false;
                 }
                 // ToggleSliderField, ToggleUseGlobalParamField and ToggleGlobalParamField are
                 // optional - older VRCFury versions may not expose them. Tools that depend on
                 // them should null-check.
-
-                // Optional: legacy `config.features` list. Present on versions that still
-                // ship VRCFuryConfig (or equivalent). Used by the merge-mode of the move
-                // tool; null-checked at call sites so its absence doesn't fail TryEnsure.
-                ConfigType = VrcfuryAsm.GetType("VF.Model.VRCFuryConfig", false);
-                ConfigField = VRCFuryType.GetField("config", any);
-                if (ConfigType != null) {
-                    FeaturesField = ConfigType.GetField("features", any);
-                }
                 return true;
             }
         }

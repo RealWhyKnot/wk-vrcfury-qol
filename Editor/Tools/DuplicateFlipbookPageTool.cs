@@ -65,7 +65,7 @@ namespace UmeVrcfQol.Tools {
                     $"Duplicate flipbook page #{ctx.pageIndex + 1} below");
                 var clone = VrcfQol.DeepClonePage(ctx.pages[ctx.pageIndex]);
                 ctx.pages.Insert(ctx.pageIndex + 1, clone);
-                EditorUtility.SetDirty(ctx.vrcfComponent);
+                VrcfQol.MarkModified(ctx.vrcfComponent);
                 VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.pageIndex + 1} " +
                           $"as new page #{ctx.pageIndex + 2}.");
             } catch (Exception ex) { Fail("Duplicate Page Below", ex); }
@@ -83,7 +83,7 @@ namespace UmeVrcfQol.Tools {
                     return;
                 }
                 ctx.pages.Insert(ctx.pageIndex + 1, blank);
-                EditorUtility.SetDirty(ctx.vrcfComponent);
+                VrcfQol.MarkModified(ctx.vrcfComponent);
                 VrcfQolLogger.Instance.Info($"Inserted empty flipbook page at #{ctx.pageIndex + 2}.");
             } catch (Exception ex) { Fail("Insert Empty Page Below", ex); }
         }
@@ -95,7 +95,7 @@ namespace UmeVrcfQol.Tools {
                     $"Duplicate flipbook page #{ctx.pageIndex + 1}");
                 var clone = VrcfQol.DeepClonePage(ctx.pages[ctx.pageIndex]);
                 ctx.pages.Add(clone);
-                EditorUtility.SetDirty(ctx.vrcfComponent);
+                VrcfQol.MarkModified(ctx.vrcfComponent);
                 VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.pageIndex + 1} " +
                           $"as page #{ctx.pages.Count}.");
             } catch (Exception ex) { Fail("Duplicate Page", ex); }

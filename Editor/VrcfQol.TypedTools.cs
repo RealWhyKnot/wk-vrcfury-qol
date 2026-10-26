@@ -17,7 +17,7 @@ namespace UmeVrcfQol {
 
         // ---- FlipBookPage ----
 
-        private static readonly Regex PagePathRegex = new Regex(
+        internal static readonly Regex PagePathRegex = new Regex(
             @"\.pages\.Array\.data\[(\d+)\]$", RegexOptions.Compiled);
 
         public static bool IsFlipbookPageProperty(SerializedProperty prop) {

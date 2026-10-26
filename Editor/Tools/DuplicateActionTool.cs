@@ -88,7 +88,7 @@ namespace UmeVrcfQol.Tools {
                 Undo.RegisterCompleteObjectUndo(component, "Duplicate VRCFury action");
                 var clone = CloneAction(src);
                 list.Insert(index + 1, clone);
-                EditorUtility.SetDirty(component);
+                VrcfQol.MarkModified(component);
                 VrcfQolLogger.Instance.Info($"Duplicated action #{index + 1} ({src.GetType().Name}) " +
                           $"in place (now at #{index + 2}).");
                 return true;
@@ -157,7 +157,7 @@ namespace UmeVrcfQol.Tools {
                 Undo.RegisterCompleteObjectUndo(component, "Duplicate VRCFury action to flipbook page");
                 var clone = CloneAction(src);
                 targetActions.Add(clone);
-                EditorUtility.SetDirty(component);
+                VrcfQol.MarkModified(component);
                 VrcfQolLogger.Instance.Info($"Duplicated action #{actionIndex + 1} ({src.GetType().Name}) " +
                           $"from page #{sourcePageIndex + 1} to page #{targetPageIndex + 1}.");
                 return true;

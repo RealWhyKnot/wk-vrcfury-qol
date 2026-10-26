@@ -143,5 +143,101 @@ namespace WhyKnot.VrcfQol.Tests {
             // to disable auto-fix on both).
             Assert.AreEqual(0, result.Count);
         }
+
+        private static ToggleInfo Set(string id, string menu, string cur, bool byTool = false, bool held = false) {
+            var info = Info(id, menu, cur);
+            info.UsesGlobalParam = true;
+            info.AssignedByTool = byTool;
+            info.HeldPreviously = held;
+            return info;
+        }
+
+        [Test]
+        public void ExistingCustomGlobalParam_IsKept() {
+            var input = new List<ToggleInfo> { Set("a", "Hat", "MyHatParam") };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("MyHatParam", result["a"]);
+        }
+
+        [Test]
+        public void ExistingGlobalParam_SurvivesMenuRename() {
+            var input = new List<ToggleInfo> { Set("a", "Hats", "Hat", held: true) };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("Hat", result["a"]);
+        }
+
+        [Test]
+        public void ValueWrittenByToolThisSession_FollowsMenuPath() {
+            var input = new List<ToggleInfo> { Set("a", "Hats", "Hat", byTool: true, held: true) };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("Hats", result["a"]);
+        }
+
+        [Test]
+        public void GlobalParamNotInUse_AdoptsMenuPath() {
+            var input = new List<ToggleInfo> { Info("a", "Hat", cur: "Old") };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("Hat", result["a"]);
+        }
+
+        [Test]
+        public void Duplicate_OriginalKeepsName_CopyGetsSuffix() {
+            var input = new List<ToggleInfo> {
+                Set("a", "Hat", "Hat"),
+                Set("b", "Hat", "Hat", held: true),
+            };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("Hat", result["b"]);
+            Assert.AreEqual("Hat 2", result["a"]);
+        }
+
+        [Test]
+        public void ToolOwnedDuplicate_OriginalKeepsName_CopyGetsSuffix() {
+            var input = new List<ToggleInfo> {
+                Set("a", "Hat", "Hat"),
+                Set("b", "Hat", "Hat", byTool: true, held: true),
+            };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("Hat", result["b"]);
+            Assert.AreEqual("Hat 2", result["a"]);
+        }
+
+        [Test]
+        public void CustomNameCollision_LoserFallsBackToMenuPath() {
+            var input = new List<ToggleInfo> {
+                Set("a", "Bag", "Shared"),
+                Set("b", "Hat", "Shared", held: true),
+            };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("Shared", result["b"]);
+            Assert.AreEqual("Bag", result["a"]);
+        }
+
+        [Test]
+        public void ExistingGlobalParam_ReservesNameAgainstNewToggle() {
+            var input = new List<ToggleInfo> {
+                Set("b", "Bag", "Hat"),
+                Info("a", "Hat"),
+            };
+
+            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+
+            Assert.AreEqual("Hat", result["b"]);
+            Assert.AreEqual("Hat 2", result["a"]);
+        }
     }
 }

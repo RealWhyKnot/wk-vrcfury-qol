@@ -109,6 +109,13 @@ namespace UmeVrcfQol {
             }
             var sourceIndex = oneBasedIndex - 1;
 
+            var pagePath = FindPageBindingPath(pageLabel);
+            var owner = pagePath != null ? FindOwningComponent(pageLabel) : null;
+            if (owner != null && VrcfQol.TryResolveFlipbookFromPagePath(owner, pagePath, out ctx)) {
+                return true;
+            }
+            ctx = default;
+
             var selection = Selection.activeGameObject;
             if (selection == null) {
                 error = "Could not determine which GameObject is inspected. Select it in the Hierarchy and try again.";
@@ -120,19 +127,32 @@ namespace UmeVrcfQol {
             }
             var r = VrcfQol.Reflection;
 
+            var candidates = 0;
             foreach (Component c in selection.GetComponents(r.VRCFuryType)) {
                 if (c == null) continue;
                 if (!VrcfQol.TryResolveFlipbookFromComponent(c, out var resolved)) continue;
                 if (resolved.pages == null || sourceIndex < 0 || sourceIndex >= resolved.pages.Count) continue;
                 resolved.pageIndex = sourceIndex;
                 ctx = resolved;
-                return true;
+                candidates++;
             }
+            if (candidates == 1) return true;
+            ctx = default;
 
-            error =
-                "Could not find a flipbook toggle on the selected GameObject that contains this page. " +
-                "If the flipbook is on a different object than the current selection, use right-click WhyKnot / wk-vrcfury-qol instead.";
+            error = candidates > 1
+                ? "Could not tell which flipbook this page belongs to. Right-click the page and use WhyKnot / wk-vrcfury-qol instead."
+                : "Could not find a flipbook toggle on the selected GameObject that contains this page. " +
+                  "If the flipbook is on a different object than the current selection, use right-click WhyKnot / wk-vrcfury-qol instead.";
             return false;
+        }
+
+        private static string FindPageBindingPath(VisualElement element) {
+            for (var current = element; current != null; current = current.parent) {
+                if (current is PropertyField field && VrcfQol.PagePathRegex.IsMatch(field.bindingPath ?? "")) {
+                    return field.bindingPath;
+                }
+            }
+            return null;
         }
 
         private static VisualElement FindPageButtonBar(VisualElement parent, Label pageLabel) {

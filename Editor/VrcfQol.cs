@@ -106,8 +106,12 @@ namespace UmeVrcfQol {
             }
         }
 
-
-
-
+        internal static void MarkModified(UnityEngine.Object target) {
+            if (target == null) return;
+            if (PrefabUtility.IsPartOfPrefabInstance(target)) {
+                PrefabUtility.RecordPrefabInstancePropertyModifications(target);
+            }
+            EditorUtility.SetDirty(target);
+        }
     }
 }

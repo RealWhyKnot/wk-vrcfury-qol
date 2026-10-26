@@ -38,9 +38,6 @@ sysinfo.txt
 Thumbs.db
 desktop.ini
 
-# Local Claude Code state (per-clone, not shared)
-.claude/
-
 # Per-project hot-reload log (output of VrcfQolHotReload.cs when used in a Unity project)
 VrcfQolHotReload.log
 VrcfQolHotReload.log.old

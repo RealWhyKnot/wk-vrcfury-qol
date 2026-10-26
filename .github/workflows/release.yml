@@ -143,14 +143,9 @@ jobs:
           # Ship: package.json, README, LICENSE, CHANGELOG, Editor/, Runtime/ (if any)
           # Drop: VCS, CI, contributor-facing, IDE noise, prior zip artifacts
           rsync -a \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='.gitignore' \
-            --exclude='.gitattributes' \
-            --exclude='.claude' \
-            --exclude='.vscode' \
-            --exclude='.vs' \
-            --exclude='.idea' \
+            --exclude='.*' \
+            --exclude='/Tests/' \
+            --exclude='/scripts/' \
             --exclude='CONTRIBUTING.md' \
             --exclude='staging' \
             --exclude='*.zip' \

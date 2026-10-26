@@ -12,6 +12,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -80,6 +81,7 @@ namespace UmeVrcfQol.Tools {
                     component = c,
                     state = state,
                     name = (string)r.ToggleNameField.GetValue(content) ?? "",
+                    lostSettings = SettingsLostInMigration(content),
                 });
             }
 
@@ -99,8 +101,16 @@ namespace UmeVrcfQol.Tools {
             foreach (var s in sources) {
                 preview.AppendLine("  • " + (string.IsNullOrEmpty(s.name) ? "(unnamed)" : s.name) +
                                    "  [" + PathUtility.GetGameObjectPath(s.component.gameObject) + "]");
+                if (s.lostSettings.Count > 0) {
+                    preview.AppendLine("      Not carried over: " +
+                                       string.Join(", ", s.lostSettings.Select(ObjectNames.NicifyVariableName)));
+                }
             }
             preview.AppendLine();
+            if (sources.Any(s => s.lostSettings.Count > 0)) {
+                preview.AppendLine("A flipbook page keeps only the toggle's actions, so the settings listed above are lost.");
+                preview.AppendLine();
+            }
             preview.AppendLine("Source VRCFury components will be DELETED (Undo restores everything).");
 
             if (!EditorUtility.DisplayDialog("Migrate Child Toggles Into Flipbook", preview.ToString(), "Migrate", "Cancel"))
@@ -116,7 +126,7 @@ namespace UmeVrcfQol.Tools {
                     r.PageStateField.SetValue(newPage, s.state);
                     pages.Add(newPage);
                 }
-                EditorUtility.SetDirty(destVrcf);
+                VrcfQol.MarkModified(destVrcf);
                 foreach (var s in sources) {
                     if (s.component != null) Undo.DestroyObjectImmediate(s.component);
                 }
@@ -131,10 +141,75 @@ namespace UmeVrcfQol.Tools {
             }
         }
 
+        private static List<string> SettingsLostInMigration(object toggle) {
+            try {
+                var defaults = Activator.CreateInstance(toggle.GetType());
+                return ChangedSerializedFields(toggle, defaults, "name", "state");
+            } catch (Exception e) {
+                VrcfQolLogger.Instance.Exception(e);
+                return new List<string>();
+            }
+        }
+
+        internal static List<string> ChangedSerializedFields(object value, object defaults, params string[] skip) {
+            return ChangedSerializedFields(value, defaults, 0, skip);
+        }
+
+        private static List<string> ChangedSerializedFields(object value, object defaults, int depth, string[] skip) {
+            var changed = new List<string>();
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            foreach (var field in value.GetType().GetFields(flags)) {
+                if (skip.Contains(field.Name)) continue;
+                if (field.IsNotSerialized) continue;
+                if (!field.IsPublic && !field.IsDefined(typeof(SerializeField), true)
+                    && !field.IsDefined(typeof(SerializeReference), true)) continue;
+                if (field.IsDefined(typeof(ObsoleteAttribute), true)) continue;
+                if (!SerializedEquals(field.FieldType, field.GetValue(value), field.GetValue(defaults), depth)) {
+                    changed.Add(field.Name);
+                }
+            }
+            return changed;
+        }
+
+        private static bool SerializedEquals(Type type, object a, object b, int depth) {
+            if (type == typeof(string)) return ((string)a ?? "") == ((string)b ?? "");
+            if (type.IsPrimitive || type.IsEnum) return Equals(a, b);
+            if (typeof(UnityEngine.Object).IsAssignableFrom(type)) return (a as UnityEngine.Object) == (b as UnityEngine.Object);
+            if (type.IsValueType) return Equals(a, b);
+            if (depth > 8) return true;
+            if (typeof(IList).IsAssignableFrom(type)) {
+                var listA = a as IList;
+                var listB = b as IList;
+                var count = listA?.Count ?? 0;
+                if (count != (listB?.Count ?? 0)) return false;
+                for (var i = 0; i < count; i++) {
+                    var x = listA[i];
+                    var y = listB[i];
+                    if (x == null || y == null) {
+                        if (x != y) return false;
+                        continue;
+                    }
+                    if (x.GetType() != y.GetType()) return false;
+                    if (!SerializedEquals(x.GetType(), x, y, depth + 1)) return false;
+                }
+                return true;
+            }
+            a = a ?? CreateDefault(type);
+            b = b ?? CreateDefault(type);
+            if (a == null || b == null) return a == b;
+            if (a.GetType() != b.GetType()) return false;
+            return ChangedSerializedFields(a, b, depth + 1, Array.Empty<string>()).Count == 0;
+        }
+
+        private static object CreateDefault(Type type) {
+            try { return Activator.CreateInstance(type); } catch { return null; }
+        }
+
         private struct SourceInfo {
             public Component component;
             public object state;
             public string name;
+            public List<string> lostSettings;
         }
     }
 }

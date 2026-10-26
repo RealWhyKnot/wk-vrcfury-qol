@@ -54,8 +54,8 @@ Write-Host "Deploying $packageName"
 Write-Host "  from: $repoRoot"
 Write-Host "  to:   $destination"
 
-$excludeDirs = @('.git', '.github', '.claude', '.vscode', '.vs', '.idea', 'staging', 'scripts')
-$excludeFiles = @('.gitignore', '.gitattributes', 'CONTRIBUTING.md', '*.zip', '*.bak', '*.log', '*.tmp', '*.out', '*.exit')
+$excludeDirs = @('.*', 'staging', 'scripts', (Join-Path $repoRoot 'Tests'))
+$excludeFiles = @('.*', 'CONTRIBUTING.md', '*.zip', '*.bak', '*.log', '*.tmp', '*.out', '*.exit')
 
 $robocopyArgs = @($repoRoot, $destination, '/MIR', '/NFL', '/NDL', '/NJH', '/R:1', '/W:1')
 $robocopyArgs += '/XD'
