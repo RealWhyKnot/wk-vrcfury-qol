@@ -9,7 +9,8 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## Unreleased
 
-_No notable changes since the last release._
+### Fixed
+- Stop renaming global params and drop merge mode (2475279)
 
 ---
 
