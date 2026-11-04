@@ -193,21 +193,22 @@ jobs:
           } > "$body_file"
           echo "body_file=$body_file" >> "$GITHUB_OUTPUT"
 
+      - name: Put the release package.json in place
+        run: mv package.json.release package.json
+
       - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag="${{ steps.tag.outputs.tag }}"
-          zip="${{ steps.stage.outputs.zipname }}"
-          # Move the package.json sidecar to its final filename right before upload.
-          mv package.json.release package.json
-          gh release create "$tag" \
-            "$zip" "package.json" \
-            --title "$tag" \
-            --notes-file "${{ steps.body.outputs.body_file }}" \
-            --verify-tag \
-            ${{ steps.tag.outputs.prerelease == 'true' && '--prerelease --latest=false' || '' }}
+        uses: RealWhyKnot/workflows/publish-release@v1
+        with:
+          tag: ${{ steps.tag.outputs.tag }}
+          notes-file: ${{ steps.body.outputs.body_file }}
+          target: ${{ steps.tag.outputs.sha }}
+          prerelease: ${{ steps.tag.outputs.prerelease }}
+          draft-first: 'true'
+          verify-asset: ${{ steps.stage.outputs.zipname }}
+          verify-sha256: ${{ steps.stage.outputs.sha256 }}
+          assets: |
+            ${{ steps.stage.outputs.zipname }}
+            package.json
 
       - name: Check for a promoted changelog
         id: promoted
