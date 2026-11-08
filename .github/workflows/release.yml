@@ -153,6 +153,7 @@ jobs:
           # listing builder can fetch it without unzipping.
           cp staging/package.json package.json.release
           sha256=$(sha256sum "$zipname" | awk '{print $1}')
+          printf '%s  %s\n' "$sha256" "$zipname" > "$zipname.sha256"
           size=$(stat -c%s "$zipname")
           {
             echo "zipname=$zipname"
@@ -208,6 +209,7 @@ jobs:
           verify-sha256: ${{ steps.stage.outputs.sha256 }}
           assets: |
             ${{ steps.stage.outputs.zipname }}
+            ${{ steps.stage.outputs.zipname }}.sha256
             package.json
 
       - name: Check for a promoted changelog
