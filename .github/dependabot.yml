@@ -1,7 +1,7 @@
 version: 2
 updates:
   # GitHub Actions runners -- keep workflow action versions current.
-  # No npm/nuget ecosystems here (this repo only ships .cs source consumed by
+  # No npm ecosystem here (this repo only ships .cs source consumed by
   # Unity itself; the Unity Editor manages package dependencies on its own).
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -13,6 +13,21 @@ updates:
     open-pull-requests-limit: 3
     groups:
       minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "nuget"
+    directories:
+      - "/.github/lint/unity/Editor"
+      - "/.github/lint/unity/Tests"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    groups:
+      lint-tools:
         update-types:
           - "minor"
           - "patch"
