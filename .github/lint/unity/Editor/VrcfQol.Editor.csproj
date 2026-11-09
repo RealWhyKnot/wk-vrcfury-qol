@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\Unity.props" />
+
+  <PropertyGroup>
+    <AssemblyName>dev.whyknot.wk-vrcfury-qol.Editor</AssemblyName>
+    <RootNamespace>WhyKnot.VrcfQol</RootNamespace>
+    <DefineConstants>$(DefineConstants);UNITY_EDITOR</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(Pkg)\Editor\**\*.cs" />
+  </ItemGroup>
+
+</Project>

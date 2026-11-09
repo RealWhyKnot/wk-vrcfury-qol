@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+shopt -s inherit_errexit
+
+die() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+root=$(git rev-parse --show-toplevel)
+cd "${root}"
+ps=""
+for command_name in pwsh pwsh.exe powershell.exe; do
+  if command -v "${command_name}" >/dev/null 2>&1; then
+    ps="${command_name}"
+    break
+  fi
+done
+if [[ -z ${ps} ]]; then
+  die "pre-push BLOCKED: no PowerShell found (tried pwsh, pwsh.exe, powershell.exe)."
+fi
+python -B .github/lint/style_check.py
+timeout 600 dotnet restore VrcfQol.slnx --locked-mode
+timeout 600 dotnet format VrcfQol.slnx --no-restore --verify-no-changes
+timeout 600 dotnet build VrcfQol.slnx -c Release --no-restore
+timeout 600 dotnet test VrcfQol.slnx -c Release --no-build
+timeout 600 dotnet run .github/lint/CSharpStyle.cs -- .
+timeout 600 "${ps}" -NoProfile -File .github/lint/Invoke-PSLint.ps1
+timeout 120 "${ps}" -NoProfile -File .github/scripts/Test-UpdateChangelogNotes.ps1
+if [[ ${OSTYPE} == msys* || ${OSTYPE} == cygwin* ]]; then
+  windows_root=$(pwd -W)
+  MSYS_NO_PATHCONV=1 timeout 180 wsl --distribution "${LINT_WSL_DISTRO:?}" \
+    --cd "${windows_root}" -- bash .githooks/check-shell
+else
+  bash .githooks/check-shell
+fi
+exit 0

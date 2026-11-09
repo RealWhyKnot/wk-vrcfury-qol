@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/lint/">
+    <Project Path=".github/lint/unity/Editor/VrcfQol.Editor.csproj" />
+    <Project Path=".github/lint/unity/Tests/VrcfQol.Tests.Editor.csproj" />
+  </Folder>
+</Solution>

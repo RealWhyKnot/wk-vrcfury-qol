@@ -1,68 +1,44 @@
-// VrcfQolInspectorOverlay.PageButtons.cs
+#nullable enable
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
+using System.Globalization;
 using System.Text.RegularExpressions;
+using UmeVrcfQol.Internal.Reflection;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
-using UmeVrcfQol.Tools;
-using UmeVrcfQol.Internal.Reflection;
 
-namespace UmeVrcfQol {
+namespace UmeVrcfQol
+{
+    internal static partial class VrcfQolInspectorOverlay
+    {
+        private const string DialogTitle = "WhyKnot wk-vrcfury-qol";
+        private const string UnknownPageMessage = "Could not determine which flipbook page this button belongs to.";
 
-    internal static partial class VrcfQolInspectorOverlay {
-
-        // ----------------------------------------------------------------------
-        // Per-page inline buttons
-        // ----------------------------------------------------------------------
-
-        // Returns true if buttons were freshly injected (caller uses this to
-        // decide whether the inspector's scroll position should be restored).
-        private static bool TryInjectPageButtons(Label pageLabel) {
+        private static bool TryInjectPageButtons(Label pageLabel)
+        {
             pageLabel.AddToClassList(InjectedClass);
 
-            var parent = pageLabel.parent;
-            if (parent == null) return false;
+            VisualElement parent = pageLabel.parent;
+            if (parent == null)
+            {
+                return false;
+            }
 
-            var specs = VrcfQol.InlinePageButtons;
-            if (specs == null || specs.Count == 0) return false;
+            IReadOnlyList<VrcfQol.InlineButtonSpec> specs = VrcfQol.InlinePageButtons;
+            if (specs.Count == 0)
+            {
+                return false;
+            }
 
-            var buttons = FindPageButtonBar(parent, pageLabel);
-            var inserted = false;
-            if (buttons == null) {
-                // Sibling-insert approach: keep the label exactly where it is and
-                // just append a button container as the next sibling. Doing it this
-                // way (rather than removing the label and re-parenting it under a
-                // wrapper row) avoids two extra mutations to the visual tree, which
-                // is what was triggering scroll resets on every overlay tick during
-                // a flipbook page drag.
-                buttons = new VisualElement();
-                buttons.AddToClassList(ButtonBarClass);
-                buttons.userData = pageLabel;
-                buttons.style.flexDirection = FlexDirection.Row;
-                buttons.style.alignItems = Align.Center;
-                buttons.style.justifyContent = Justify.FlexEnd;
-                buttons.style.flexShrink = 0;
-                buttons.style.marginLeft = 8;
-                buttons.style.marginTop = 1;
-                buttons.style.marginBottom = 1;
-
-                foreach (var spec in specs) {
-                    var capturedSpec = spec;
-                    var btn = new Button(() => OnInlineButtonClicked(pageLabel, capturedSpec)) {
-                        text = spec.Text,
-                    };
-                    btn.userData = spec;
-                    btn.tooltip = spec.Tooltip ?? string.Empty;
-                    EditorElementWalker.ApplyInlineButtonStyle(btn);
-                    buttons.Add(btn);
-                }
-
-                int labelIndex = parent.IndexOf(pageLabel);
-                parent.Insert(labelIndex + 1, buttons);
+            VisualElement? buttons = FindPageButtonBar(parent, pageLabel);
+            bool inserted = false;
+            if (buttons == null)
+            {
+                buttons = BuildPageButtonBar(pageLabel, specs);
+                parent.Insert(parent.IndexOf(pageLabel) + 1, buttons);
                 inserted = true;
             }
 
@@ -70,75 +46,162 @@ namespace UmeVrcfQol {
             return inserted;
         }
 
-        private static void OnInlineButtonClicked(Label pageLabel, VrcfQol.InlineButtonSpec spec) {
-            if (!TryResolvePageContext(pageLabel, out var ctx, out var error)) {
-                EditorUtility.DisplayDialog("WhyKnot wk-vrcfury-qol", error, "OK");
+        private static VisualElement BuildPageButtonBar(Label pageLabel, IReadOnlyList<VrcfQol.InlineButtonSpec> specs)
+        {
+            var buttons = new VisualElement();
+            buttons.AddToClassList(ButtonBarClass);
+            buttons.userData = pageLabel;
+            buttons.style.flexDirection = FlexDirection.Row;
+            buttons.style.alignItems = Align.Center;
+            buttons.style.justifyContent = Justify.FlexEnd;
+            buttons.style.flexShrink = 0;
+            buttons.style.marginLeft = 8;
+            buttons.style.marginTop = 1;
+            buttons.style.marginBottom = 1;
+
+            foreach (VrcfQol.InlineButtonSpec spec in specs)
+            {
+                VrcfQol.InlineButtonSpec capturedSpec = spec;
+                var btn = new Button(() => OnInlineButtonClicked(pageLabel, capturedSpec))
+                {
+                    text = spec.Text,
+                    userData = spec,
+                    tooltip = spec.Tooltip,
+                };
+                EditorElementWalker.ApplyInlineButtonStyle(btn);
+                buttons.Add(btn);
+            }
+
+            return buttons;
+        }
+
+        private static bool Evaluate(Func<VrcfQol.FlipbookContext, bool>? predicate, VrcfQol.FlipbookContext ctx, bool fallback)
+        {
+            if (predicate == null)
+            {
+                return fallback;
+            }
+
+            try
+            {
+                return predicate(ctx);
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
+                return fallback;
+            }
+        }
+
+        private static string Describe(Func<VrcfQol.FlipbookContext, string>? provider, VrcfQol.FlipbookContext ctx, string fallback)
+        {
+            if (provider == null)
+            {
+                return fallback;
+            }
+
+            try
+            {
+                string text = provider(ctx);
+                return string.IsNullOrEmpty(text) ? fallback : text;
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
+                return fallback;
+            }
+        }
+
+        private static void OnInlineButtonClicked(Label pageLabel, VrcfQol.InlineButtonSpec spec)
+        {
+            if (!TryResolvePageContext(pageLabel, out VrcfQol.FlipbookContext ctx, out string? error))
+            {
+                EditorUtility.DisplayDialog(DialogTitle, error, "OK");
                 return;
             }
 
-            if (spec.Visible != null) {
-                bool vis;
-                try { vis = spec.Visible(ctx); } catch { vis = true; }
-                if (!vis) {
-                    EditorUtility.DisplayDialog("WhyKnot wk-vrcfury-qol",
-                        "This action is not available for this page right now.", "OK");
-                    return;
-                }
+            if (!Evaluate(spec.Visible, ctx, fallback: true))
+            {
+                EditorUtility.DisplayDialog(DialogTitle,
+                    "This action is not available for this page right now.", "OK");
+                return;
             }
 
-            try {
+            try
+            {
                 spec.OnClick(ctx);
-            } catch (System.Exception ex) {
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
                 VrcfQolLogger.Instance.Exception(ex);
-                EditorUtility.DisplayDialog("WhyKnot wk-vrcfury-qol",
+                EditorUtility.DisplayDialog(DialogTitle,
                     "Action failed. See Console.\n\n" + ex.Message, "OK");
             }
         }
 
-        private static bool TryResolvePageContext(Label pageLabel, out VrcfQol.FlipbookContext ctx, out string error) {
+        private static bool TryResolvePageContext(Label pageLabel, out VrcfQol.FlipbookContext ctx, out string? error)
+        {
             ctx = default;
             error = null;
-            var match = PageLabelRegex.Match(pageLabel.text ?? "");
-            if (!match.Success) {
-                error = "Could not determine which flipbook page this button belongs to.";
+            Match match = PageLabelRegex.Match(pageLabel.text ?? "");
+            if (!match.Success
+                || !int.TryParse(match.Groups["page"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int oneBasedIndex))
+            {
+                error = UnknownPageMessage;
                 return false;
             }
-            if (!int.TryParse(match.Groups[1].Value, out var oneBasedIndex)) {
-                error = "Could not determine which flipbook page this button belongs to.";
-                return false;
-            }
-            var sourceIndex = oneBasedIndex - 1;
 
-            var pagePath = FindPageBindingPath(pageLabel);
-            var owner = pagePath != null ? FindOwningComponent(pageLabel) : null;
-            if (owner != null && VrcfQol.TryResolveFlipbookFromPagePath(owner, pagePath, out ctx)) {
-                return true;
+            string? pagePath = FindPageBindingPath(pageLabel);
+            if (pagePath != null)
+            {
+                Component? owner = FindOwningComponent(pageLabel);
+                if (owner != null && VrcfQol.TryResolveFlipbookFromPagePath(owner, pagePath, out ctx))
+                {
+                    return true;
+                }
             }
+
+            return TryResolvePageFromSelection(oneBasedIndex - 1, out ctx, out error);
+        }
+
+        private static bool TryResolvePageFromSelection(int sourceIndex, out VrcfQol.FlipbookContext ctx, out string? error)
+        {
             ctx = default;
-
-            var selection = Selection.activeGameObject;
-            if (selection == null) {
+            GameObject selection = Selection.activeGameObject;
+            if (selection == null)
+            {
                 error = "Could not determine which GameObject is inspected. Select it in the Hierarchy and try again.";
                 return false;
             }
-            if (!VrcfQol.Reflection.TryEnsure(out var err)) {
-                error = err;
+
+            VrcfQol.ReflectionCache r = VrcfQol.Reflection;
+            if (!r.TryEnsure(out error))
+            {
                 return false;
             }
-            var r = VrcfQol.Reflection;
 
-            var candidates = 0;
-            foreach (Component c in selection.GetComponents(r.VRCFuryType)) {
-                if (c == null) continue;
-                if (!VrcfQol.TryResolveFlipbookFromComponent(c, out var resolved)) continue;
-                if (resolved.pages == null || sourceIndex < 0 || sourceIndex >= resolved.pages.Count) continue;
-                resolved.pageIndex = sourceIndex;
+            int candidates = 0;
+            foreach (Component c in selection.GetComponents(r.VRCFuryType))
+            {
+                if (c == null || !VrcfQol.TryResolveFlipbookFromComponent(c, out VrcfQol.FlipbookContext resolved))
+                {
+                    continue;
+                }
+
+                if (resolved.Pages == null || sourceIndex < 0 || sourceIndex >= resolved.Pages.Count)
+                {
+                    continue;
+                }
+
+                resolved.PageIndex = sourceIndex;
                 ctx = resolved;
                 candidates++;
             }
-            if (candidates == 1) return true;
-            ctx = default;
 
+            if (candidates == 1)
+            {
+                return true;
+            }
+
+            ctx = default;
             error = candidates > 1
                 ? "Could not tell which flipbook this page belongs to. Right-click the page and use WhyKnot / wk-vrcfury-qol instead."
                 : "Could not find a flipbook toggle on the selected GameObject that contains this page. " +
@@ -146,65 +209,48 @@ namespace UmeVrcfQol {
             return false;
         }
 
-        private static string FindPageBindingPath(VisualElement element) {
-            for (var current = element; current != null; current = current.parent) {
-                if (current is PropertyField field && VrcfQol.PagePathRegex.IsMatch(field.bindingPath ?? "")) {
+        private static string? FindPageBindingPath(VisualElement element)
+        {
+            for (VisualElement current = element; current != null; current = current.parent)
+            {
+                if (current is PropertyField field && VrcfQol.PagePathRegex.IsMatch(field.bindingPath ?? ""))
+                {
                     return field.bindingPath;
                 }
             }
             return null;
         }
 
-        private static VisualElement FindPageButtonBar(VisualElement parent, Label pageLabel) {
-            for (int i = 0; i < parent.childCount; i++) {
-                var child = parent[i];
+        private static VisualElement? FindPageButtonBar(VisualElement parent, Label pageLabel)
+        {
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                VisualElement child = parent[i];
                 if (child != null &&
                     child.ClassListContains(ButtonBarClass) &&
-                    ReferenceEquals(child.userData, pageLabel)) {
+                    ReferenceEquals(child.userData, pageLabel))
+                {
                     return child;
                 }
             }
             return null;
         }
 
-        private static void UpdatePageButtons(Label pageLabel, VisualElement buttons) {
-            var hasContext = TryResolvePageContext(pageLabel, out var ctx, out _);
-            for (int i = 0; i < buttons.childCount; i++) {
-                var btn = buttons[i] as Button;
-                var spec = btn?.userData as VrcfQol.InlineButtonSpec;
-                if (btn == null || spec == null) continue;
-
-                var visible = true;
-                if (hasContext && spec.Visible != null) {
-                    try { visible = spec.Visible(ctx); } catch { visible = true; }
+        private static void UpdatePageButtons(Label pageLabel, VisualElement buttons)
+        {
+            bool hasContext = TryResolvePageContext(pageLabel, out VrcfQol.FlipbookContext ctx, out _);
+            for (int i = 0; i < buttons.childCount; i++)
+            {
+                if (buttons[i] is not Button btn || btn.userData is not VrcfQol.InlineButtonSpec spec)
+                {
+                    continue;
                 }
+
+                bool visible = !hasContext || Evaluate(spec.Visible, ctx, fallback: true);
                 btn.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
-
-                btn.text = spec.Text;
-                if (hasContext && spec.TextProvider != null) {
-                    try {
-                        var text = spec.TextProvider(ctx);
-                        if (!string.IsNullOrEmpty(text)) btn.text = text;
-                    } catch {
-                        btn.text = spec.Text;
-                    }
-                }
-
-                btn.tooltip = spec.Tooltip ?? string.Empty;
-                if (hasContext && spec.TooltipProvider != null) {
-                    try {
-                        var tooltip = spec.TooltipProvider(ctx);
-                        if (!string.IsNullOrEmpty(tooltip)) btn.tooltip = tooltip;
-                    } catch {
-                        btn.tooltip = spec.Tooltip ?? string.Empty;
-                    }
-                }
-
-                var danger = false;
-                if (hasContext && spec.Danger != null) {
-                    try { danger = spec.Danger(ctx); } catch { danger = false; }
-                }
-                EditorElementWalker.ApplyDangerButtonStyle(btn, danger);
+                btn.text = hasContext ? Describe(spec.TextProvider, ctx, spec.Text) : spec.Text;
+                btn.tooltip = hasContext ? Describe(spec.TooltipProvider, ctx, spec.Tooltip) : spec.Tooltip;
+                EditorElementWalker.ApplyDangerButtonStyle(btn, hasContext && Evaluate(spec.Danger, ctx, fallback: false));
             }
         }
     }

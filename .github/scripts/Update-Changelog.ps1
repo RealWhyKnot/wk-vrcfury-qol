@@ -1,352 +1,275 @@
-<#
-.SYNOPSIS
-  Maintains CHANGELOG.md (root, embedded into the in-app viewer) so the
-  changelog stays current without manual editing on every release.
-
-.DESCRIPTION
-  Three modes:
-
-    Append   Parses commit subjects in -Range, buckets them by conventional-
-             commit type, and inserts bullets under the "## Unreleased" heading
-             at the top of CHANGELOG.md. Skips merge commits, bot commits, and
-             commits explicitly tagged "[skip changelog]" in the subject. Skips
-             types that aren't user-visible (docs/build/ci/chore/test) so the
-             changelog stays focused on behavior changes.
-
-    Promote  Renames the "## Unreleased" heading to "## [vTAG](...) -- DATE",
-             links to the GitHub release page, and inserts a fresh empty
-             "## Unreleased" section above. Used by release.yml on tag push so
-             the embedded CHANGELOG.md inside the shipped exe carries the
-             versioned notes for that release.
-
-    Notes    Reads the current "## Unreleased" section content (or, with
-             -ForVersion, reads the section for that version) and writes it to
-             stdout. Stable -ForVersion notes also include immediately prior
-             prerelease sections until the previous stable section.
-
-  The script is invoked from .github/workflows/changelog-append.yml and
-  .github/workflows/release.yml. PowerShell Core (pwsh) is used because both
-  Windows and Ubuntu runners ship it, and the existing build tooling is
-  PowerShell-native.
-
-.PARAMETER Mode
-  Append | Promote | Notes
-
-.PARAMETER Range
-  git-log range, e.g. "abc123..def456". Required for Append.
-
-.PARAMETER Version
-  Tag, e.g. "v2026.4.27.3". Required for Promote and Notes (with -ForVersion).
-
-.PARAMETER ForVersion
-  When set on Notes mode, returns the section for that already-promoted
-  version instead of the live "## Unreleased" section. Stable versions include
-  directly preceding prerelease sections in the returned release body.
-
-.PARAMETER Repo
-  owner/repo for release-link generation, defaults to $env:GITHUB_REPOSITORY.
-
-.PARAMETER RepoRoot
-  Repo root, defaults to the script's parent's parent's parent (.github/scripts/.. -> .github/.. -> repo root).
-#>
-
+#!/usr/bin/env pwsh
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [ValidateSet('Append', 'Promote', 'Notes')]
-    [string]$Mode,
+    [string] $Mode,
 
-    [string]$Range,
-    [string]$Version,
-    [switch]$ForVersion,
-    [string]$Repo = $env:GITHUB_REPOSITORY,
-    [string]$RepoRoot
+    [string] $Range,
+    [string] $Version,
+    [switch] $ForVersion,
+    [string] $Repo = $env:GITHUB_REPOSITORY,
+    [string] $RepoRoot
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-if (-not $RepoRoot) {
-    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-}
-
-$RootChangelog = Join-Path $RepoRoot 'CHANGELOG.md'
-
-if (-not (Test-Path $RootChangelog)) { throw "CHANGELOG.md not found at $RootChangelog" }
-
-# --- Helpers ---------------------------------------------------------------
-
-# Read a file as UTF-8 text. We deliberately avoid BOM round-trips: the prepare-
-# commit-msg hook already had to defend against PowerShell-written BOMs in
-# version.txt; let's not seed any new ones in changelog files.
 function Read-TextUtf8 {
-    param([string]$Path)
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string] $Path)
+
     return [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Write-TextUtf8 {
-    param([string]$Path, [string]$Content)
+    [CmdletBinding()]
+    [OutputType([void])]
+    param([string] $Path, [string] $Content)
+
     [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
 }
 
-# Strip the (YYYY.M.D.N-XXXX) or (YYYY.M.D.N) build stamp the prepare-commit-msg
-# hook appends to every subject in this repo. Without this every changelog bullet
-# would carry a noisy "(2026.4.27.14-A130)" tail.
-function Strip-BuildStamp {
-    param([string]$Subject)
+function Remove-BuildStamp {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string] $Subject)
+
     return ($Subject -replace ' \(\d{4}\.\d+\.\d+\.\d+(-[A-Fa-f0-9]{4,8})?\)$', '').Trim()
 }
 
-# Conventional-commit bucketing. Returns $null for types we deliberately skip
-# (docs/build/ci/test/non-deps chore) -- those are real work but not user-visible
-# release notes. Returns @{Bucket=...; Bullet=...} otherwise.
-function Parse-CommitSubject {
-    param([string]$Sha, [string]$Subject)
+function ConvertFrom-CommitSubject {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param([string] $Sha, [string] $Subject)
 
-    $stripped = Strip-BuildStamp -Subject $Subject
+    $stripped = Remove-BuildStamp -Subject $Subject
     if ([string]::IsNullOrWhiteSpace($stripped)) { return $null }
-
-    # Skip explicit opt-out token. Lets a user push a no-op-from-changelog-
-    # perspective commit (typo fix, doc reword) without it showing up.
     if ($stripped -match '\[skip changelog\]') { return $null }
-
-    # Skip merge subjects. `git log --no-merges` already excludes them in
-    # Append mode, but be defensive.
     if ($stripped -match '^Merge ') { return $null }
 
-    $pattern = '^(?<type>feat|fix|perf|refactor|docs|build|ci|chore|test|revert)(?:\((?<scope>[^)]+)\))?(?<bang>!)?:\s+(?<desc>.+)$'
-    $m = [regex]::Match($stripped, $pattern)
-    if (-not $m.Success) {
-        # Non-conventional commit -- surface it under "Changed" rather than
-        # silently dropping. Engineering-Standards mandates the format, but
-        # one slipped through is better in the changelog than missing.
+    $typePattern = '^(?<type>feat|fix|perf|refactor|docs|build|ci|chore|test|revert)'
+    $pattern = $typePattern + '(?:\((?<scope>[^)]+)\))?(?<bang>!)?:\s+(?<desc>.+)$'
+    $match = [regex]::Match($stripped, $pattern)
+    if (-not $match.Success) {
         return @{
             Bucket = 'Changed'
             Bullet = "- $stripped (" + $Sha.Substring(0, 7) + ')'
         }
     }
 
-    $type = $m.Groups['type'].Value
-    $scope = $m.Groups['scope'].Value
-    $isBreaking = $m.Groups['bang'].Success
-    $desc = $m.Groups['desc'].Value
-
-    # Capitalise the description to match the existing changelog's "Added"
-    # / "Fixed" prose style.
-    if ($desc.Length -gt 0) {
-        $desc = $desc.Substring(0, 1).ToUpper() + $desc.Substring(1)
+    $type = $match.Groups['type'].Value
+    $scope = $match.Groups['scope'].Value
+    $isBreaking = $match.Groups['bang'].Success
+    $description = $match.Groups['desc'].Value
+    if ($description.Length -gt 0) {
+        $description = $description.Substring(0, 1).ToUpper() + $description.Substring(1)
     }
 
     $bucket = switch ($type) {
-        'feat'     { 'Added' }
-        'fix'      { 'Fixed' }
-        'perf'     { 'Changed' }
+        'feat' { 'Added' }
+        'fix' { 'Fixed' }
+        'perf' { 'Changed' }
         'refactor' { 'Changed' }
-        'revert'   { 'Changed' }
-        'chore'    {
-            # Surface dependency bumps (Dependabot et al.) -- those are user-
-            # facing in the security/footprint sense -- but skip everything
-            # else. `chore(deps)` and `chore(deps-dev)` both qualify.
+        'revert' { 'Changed' }
+        'chore' {
             if ($scope -and $scope -match '^deps') { 'Changed' } else { $null }
         }
-        default    { $null }  # docs / build / ci / test
+        default { $null }
     }
 
     if (-not $bucket) { return $null }
-    if ($isBreaking)  { $bucket = 'Breaking' }
+    if ($isBreaking) { $bucket = 'Breaking' }
 
     $scopePrefix = if ($scope) { "**${scope}:** " } else { '' }
     $shortSha = $Sha.Substring(0, 7)
-    $bullet = "- $scopePrefix$desc ($shortSha)"
-
-    return @{ Bucket = $bucket; Bullet = $bullet }
+    return @{ Bucket = $bucket; Bullet = "- $scopePrefix$description ($shortSha)" }
 }
 
-# Order matters for rendering -- Breaking comes first, then Added, Changed, Fixed.
-$BucketOrder = @('Breaking', 'Added', 'Changed', 'Fixed')
-
-# Find the "## Unreleased" section in $content. Returns @{Start=int; End=int;
-# Body=string} where Body is everything between the heading and the next "---"
-# separator (exclusive). Returns $null if the section isn't present.
 function Find-UnreleasedSection {
-    param([string]$Content)
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param([string] $Content)
 
     $lines = $Content -split "`n"
-    $startIdx = -1
+    $startIndex = -1
     for ($i = 0; $i -lt $lines.Length; $i++) {
         if ($lines[$i] -match '^##\s+Unreleased\s*$') {
-            $startIdx = $i
+            $startIndex = $i
             break
         }
     }
-    if ($startIdx -lt 0) { return $null }
+    if ($startIndex -lt 0) { return $null }
 
-    # Section body runs from startIdx+1 up to (but not including) the next
-    # "---" separator. The convention in CHANGELOG.md is "---" between sections.
-    $endIdx = $lines.Length
-    for ($j = $startIdx + 1; $j -lt $lines.Length; $j++) {
-        if ($lines[$j] -match '^---\s*$') {
-            $endIdx = $j
-            break
-        }
-        # Defensive: another ## heading without a separator means we ran past.
-        if ($lines[$j] -match '^##\s+') {
-            $endIdx = $j
+    $endIndex = $lines.Length
+    for ($j = $startIndex + 1; $j -lt $lines.Length; $j++) {
+        if ($lines[$j] -match '^---\s*$' -or $lines[$j] -match '^##\s+') {
+            $endIndex = $j
             break
         }
     }
 
     return @{
-        StartIdx = $startIdx
-        EndIdx   = $endIdx
-        Lines    = $lines
+        StartIndex = $startIndex
+        EndIndex   = $endIndex
+        Lines      = $lines
     }
 }
 
-# Parse an existing Unreleased body into bucket -> bullets[] map.
-# Body lines look like:
-#   ### Added
-#   - foo (abc1234)
-#   - bar (def5678)
-#
-#   ### Fixed
-#   - baz (...)
-function Parse-UnreleasedBody {
-    param([string[]]$BodyLines)
+function Get-SectionBodyLine {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([hashtable] $Section)
+
+    $bodyStart = $Section.StartIndex + 1
+    $bodyEnd = $Section.EndIndex - 1
+    if ($bodyEnd -ge $bodyStart) { return [string[]] $Section.Lines[$bodyStart..$bodyEnd] }
+    return [string[]] @()
+}
+
+function Get-SectionTailLine {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([hashtable] $Section)
+
+    $lines = $Section.Lines
+    if ($Section.EndIndex -lt $lines.Length) { return [string[]] $lines[$Section.EndIndex..($lines.Length - 1)] }
+    return [string[]] @()
+}
+
+function ConvertFrom-UnreleasedBody {
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param([string[]] $BodyLines)
 
     $buckets = [ordered]@{}
     $current = $null
     foreach ($line in $BodyLines) {
         if ($line -match '^###\s+(?<name>.+?)\s*$') {
-            $current = $matches['name']
-            if (-not $buckets.Contains($current)) { $buckets[$current] = @() }
+            $current = $Matches['name']
+            if (-not $buckets.Contains($current)) {
+                $buckets[$current] = [System.Collections.Generic.List[string]]::new()
+            }
             continue
         }
         if ($line -match '^\s*- ' -and $current) {
-            $buckets[$current] += $line
+            $buckets[$current].Add($line)
         }
     }
     return $buckets
 }
 
-# Render bucket map to body lines.
-function Render-UnreleasedBody {
-    param([hashtable]$Buckets)
+function ConvertTo-UnreleasedBody {
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([System.Collections.IDictionary] $Buckets)
 
     if ($Buckets.Count -eq 0) {
-        # Empty body -- match the seed placeholder so the file stays consistent
-        # and the seed comment in the file makes sense.
-        return @('', '_No notable changes since the last release._', '')
+        return [string[]] @('', '_No notable changes since the last release._', '')
     }
 
-    $out = @('')
+    $body = [System.Collections.Generic.List[string]]::new()
+    $body.Add('')
     $emitted = @{}
-    foreach ($name in $BucketOrder) {
+    foreach ($name in @('Breaking', 'Added', 'Changed', 'Fixed')) {
         if ($Buckets.Contains($name) -and $Buckets[$name].Count -gt 0) {
-            $out += "### $name"
-            $out += $Buckets[$name]
-            $out += ''
+            $body.Add("### $name")
+            $body.AddRange([string[]] $Buckets[$name])
+            $body.Add('')
             $emitted[$name] = $true
         }
     }
-    # Anything not in the canonical order (custom bucket someone hand-added)
-    # -- preserve it after the canonical ones.
     foreach ($name in $Buckets.Keys) {
         if (-not $emitted.ContainsKey($name) -and $Buckets[$name].Count -gt 0) {
-            $out += "### $name"
-            $out += $Buckets[$name]
-            $out += ''
+            $body.Add("### $name")
+            $body.AddRange([string[]] $Buckets[$name])
+            $body.Add('')
         }
     }
-    return $out
+    return $body.ToArray()
 }
 
 function Test-IsPrereleaseVersion {
-    param([string]$Version)
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([string] $Version)
+
     return $Version -like '*-*'
 }
 
-function Get-VersionSections {
-    param([string]$Content)
+function Get-VersionSection {
+    [CmdletBinding()]
+    [OutputType([pscustomobject[]])]
+    param([string] $Content)
 
     $pattern = '(?ms)^##\s+\[(?<Version>[^\]]+)\][^\n]*\n(?<Body>.*?)(?=^---\s*$|^##\s+|\z)'
-    $matches = [regex]::Matches($Content, $pattern)
-    $sections = @()
-    foreach ($m in $matches) {
-        $sections += [pscustomobject]@{
-            Version = $m.Groups['Version'].Value
-            Body    = $m.Groups['Body'].Value.Trim()
+    $sections = foreach ($match in [regex]::Matches($Content, $pattern)) {
+        [pscustomobject]@{
+            Version = $match.Groups['Version'].Value
+            Body    = $match.Groups['Body'].Value.Trim()
         }
     }
     return $sections
 }
 
+function Test-HasBulletForSha {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([string[]] $Lines, [string] $Sha)
+
+    foreach ($line in $Lines) {
+        if ($line -match "\($Sha\)") { return $true }
+    }
+    return $false
+}
+
 function Update-OneFile {
-    param(
-        [string]$Path,
-        [hashtable]$NewBullets   # bucket -> string[] of bullets
-    )
+    [CmdletBinding()]
+    [OutputType([void])]
+    param([string] $Path, [hashtable] $NewBullets)
 
     $content = Read-TextUtf8 -Path $Path
     $section = Find-UnreleasedSection -Content $content
     if (-not $section) {
-        throw "$Path is missing the '## Unreleased' section. Add a stub heading at the top before running the appender."
+        throw "$Path is missing the '## Unreleased' section. Add a stub heading at the top before appending."
     }
 
-    $bodyStart = $section.StartIdx + 1
-    $bodyEnd   = $section.EndIdx - 1
-    $bodyLines = if ($bodyEnd -ge $bodyStart) { $section.Lines[$bodyStart..$bodyEnd] } else { @() }
-
-    $existing = Parse-UnreleasedBody -BodyLines $bodyLines
-
+    $existing = ConvertFrom-UnreleasedBody -BodyLines @(Get-SectionBodyLine -Section $section)
     foreach ($bucket in $NewBullets.Keys) {
-        if (-not $existing.Contains($bucket)) { $existing[$bucket] = @() }
+        if (-not $existing.Contains($bucket)) {
+            $existing[$bucket] = [System.Collections.Generic.List[string]]::new()
+        }
         foreach ($bullet in $NewBullets[$bucket]) {
-            # De-dupe: skip if the same short-sha is already present (rerun-
-            # safety for cases where the workflow re-fires for some reason).
-            $sha = if ($bullet -match '\(([a-f0-9]{7})\)\s*$') { $matches[1] } else { $null }
-            if ($sha) {
-                $alreadyHas = $false
-                foreach ($line in $existing[$bucket]) {
-                    if ($line -match "\($sha\)") { $alreadyHas = $true; break }
-                }
-                if ($alreadyHas) { continue }
-            }
-            $existing[$bucket] += $bullet
+            $sha = if ($bullet -match '\(([a-f0-9]{7})\)\s*$') { $Matches[1] } else { $null }
+            if ($sha -and (Test-HasBulletForSha -Lines ([string[]] $existing[$bucket]) -Sha $sha)) { continue }
+            $existing[$bucket].Add($bullet)
         }
     }
 
-    $rendered = Render-UnreleasedBody -Buckets $existing
-    $before = if ($section.StartIdx -gt 0) { $section.Lines[0..($section.StartIdx)] } else { @($section.Lines[0]) }
-    $after  = if ($section.EndIdx -lt $section.Lines.Length) { $section.Lines[$section.EndIdx..($section.Lines.Length - 1)] } else { @() }
-
-    $newLines = @()
-    $newLines += $before
-    $newLines += $rendered
-    $newLines += $after
-
-    $newContent = ($newLines -join "`n")
-    Write-TextUtf8 -Path $Path -Content $newContent
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    $newLines.AddRange([string[]] $section.Lines[0..($section.StartIndex)])
+    $newLines.AddRange([string[]] @(ConvertTo-UnreleasedBody -Buckets $existing))
+    $newLines.AddRange([string[]] @(Get-SectionTailLine -Section $section))
+    Write-TextUtf8 -Path $Path -Content ($newLines -join "`n")
 }
 
-# --- Mode: Append ----------------------------------------------------------
+function Add-ChangelogEntry {
+    [CmdletBinding()]
+    [OutputType([void])]
+    param([string] $Range, [string] $RepoRoot, [string] $ChangelogPath)
 
-if ($Mode -eq 'Append') {
-    if (-not $Range) { throw "Append mode requires -Range (e.g. abc..def)." }
+    if (-not $Range) { throw 'Append mode requires -Range (e.g. abc..def).' }
 
-    Push-Location $RepoRoot
-    try {
-        # %H = full sha, %s = subject, %ae = author email, %P = parents (for
-        # merge filtering -- we also pass --no-merges as a belt-and-braces).
-        $log = & git log --no-merges --format='%H%x09%s%x09%ae' $Range 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "git log returned non-zero for range '$Range' -- treating as no commits."
-            return
-        }
-    } finally {
-        Pop-Location
+    $gitArguments = @('-C', $RepoRoot, 'log', '--no-merges', '--format=%H%x09%s%x09%ae', $Range)
+    $log = & {
+        $ErrorActionPreference = 'Continue'
+        git @gitArguments 2>$null
     }
-
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "git log returned non-zero for range '$Range' -- treating as no commits."
+        return
+    }
     if (-not $log) {
         Write-Host "No commits in range $Range -- nothing to append."
         return
@@ -359,147 +282,136 @@ if ($Mode -eq 'Append') {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
         $parts = $line -split "`t"
         if ($parts.Length -lt 3) { continue }
-        $sha = $parts[0]; $subject = $parts[1]; $email = $parts[2]
         $considered++
+        if ($parts[2] -match 'github-actions\[bot\]' -or $parts[2] -match 'noreply@github.com') { continue }
 
-        # Skip bot commits. The appender itself pushes as github-actions[bot]
-        # via GITHUB_TOKEN, so any future re-runs across that boundary
-        # would otherwise self-cite.
-        if ($email -match 'github-actions\[bot\]' -or $email -match 'noreply@github.com') { continue }
-
-        $parsed = Parse-CommitSubject -Sha $sha -Subject $subject
+        $parsed = ConvertFrom-CommitSubject -Sha $parts[0] -Subject $parts[1]
         if (-not $parsed) { continue }
 
         $bucket = $parsed.Bucket
-        if (-not $newBullets.ContainsKey($bucket)) { $newBullets[$bucket] = @() }
-        $newBullets[$bucket] += $parsed.Bullet
+        if (-not $newBullets.ContainsKey($bucket)) {
+            $newBullets[$bucket] = [System.Collections.Generic.List[string]]::new()
+        }
+        $newBullets[$bucket].Add($parsed.Bullet)
         $included++
     }
 
     Write-Host "Considered $considered commit(s), included $included in changelog."
-
     if ($included -eq 0) {
-        Write-Host "Nothing user-visible in this push; CHANGELOG unchanged."
+        Write-Host 'Nothing user-visible in this push; CHANGELOG unchanged.'
         return
     }
 
-    Update-OneFile -Path $RootChangelog -NewBullets $newBullets
-
+    Update-OneFile -Path $ChangelogPath -NewBullets $newBullets
     Write-Host "Appended $included entr(ies) to CHANGELOG.md."
-    return
 }
 
-# --- Mode: Promote ---------------------------------------------------------
+function Test-HasReleaseContent {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([string[]] $BodyLines)
 
-if ($Mode -eq 'Promote') {
-    if (-not $Version) { throw "Promote mode requires -Version (e.g. v2026.4.27.3)." }
-    if (-not $Repo)    { throw "Promote mode requires -Repo or `$env:GITHUB_REPOSITORY (e.g. owner/repo)." }
+    foreach ($line in $BodyLines) {
+        if ($line -match '^\s*- ' -or $line -match '^###\s+') { return $true }
+    }
+    return $false
+}
 
-    $today = (Get-Date -Format 'yyyy-MM-dd')
+function Publish-UnreleasedSection {
+    [CmdletBinding()]
+    [OutputType([void])]
+    param([string] $Version, [string] $Repo, [string] $ChangelogPath)
+
+    if (-not $Version) { throw 'Promote mode requires -Version (e.g. v2026.4.27.3).' }
+    if (-not $Repo) { throw 'Promote mode requires -Repo or $env:GITHUB_REPOSITORY (e.g. owner/repo).' }
+
+    $today = Get-Date -Format 'yyyy-MM-dd'
     $heading = "## [$Version](https://github.com/$Repo/releases/tag/$Version) -- $today"
 
-    foreach ($path in @($RootChangelog)) {
-        $content = Read-TextUtf8 -Path $path
-        $section = Find-UnreleasedSection -Content $content
-        if (-not $section) {
-            throw "$path is missing the '## Unreleased' section. Cannot promote."
-        }
-
-        $lines = $section.Lines
-        $bodyStart = $section.StartIdx + 1
-        $bodyEnd   = $section.EndIdx - 1
-        $bodyLines = if ($bodyEnd -ge $bodyStart) { $lines[$bodyStart..$bodyEnd] } else { @() }
-
-        # Drop the placeholder if it's the only thing in the body.
-        $hasReal = $false
-        foreach ($l in $bodyLines) {
-            if ($l -match '^\s*- ' -or $l -match '^###\s+') { $hasReal = $true; break }
-        }
-        if (-not $hasReal) {
-            # Empty section: the released version still gets an entry, just
-            # with a stub note. This keeps the heading -> release-page link
-            # alive so users browsing the changelog can click through.
-            $bodyLines = @('', '_Maintenance release; see commit log for details._', '')
-        }
-
-        # Build the new file:
-        #   <preamble through line StartIdx-1>
-        #   ## Unreleased
-        #
-        #   _No notable changes since the last release._
-        #
-        #   ---
-        #
-        #   ## [vX] - DATE
-        #   <bodyLines>
-        #   ---
-        #   <rest>
-        $before = if ($section.StartIdx -gt 0) { $lines[0..($section.StartIdx - 1)] } else { @() }
-        $after  = if ($section.EndIdx -lt $lines.Length) { $lines[$section.EndIdx..($lines.Length - 1)] } else { @() }
-
-        $newLines = @()
-        $newLines += $before
-        $newLines += '## Unreleased'
-        $newLines += ''
-        $newLines += '_No notable changes since the last release._'
-        $newLines += ''
-        $newLines += '---'
-        $newLines += ''
-        $newLines += $heading
-        $newLines += $bodyLines
-        # $after starts with the existing "---" separator (or next ## heading).
-        $newLines += $after
-
-        Write-TextUtf8 -Path $path -Content (($newLines -join "`n"))
-    }
-
-    Write-Host "Promoted Unreleased -> $heading."
-    return
-}
-
-# --- Mode: Notes -----------------------------------------------------------
-
-if ($Mode -eq 'Notes') {
-    $content = Read-TextUtf8 -Path $RootChangelog
-
-    if ($ForVersion) {
-        if (-not $Version) { throw "Notes -ForVersion requires -Version." }
-
-        $sections = @(Get-VersionSections -Content $content)
-        $startIdx = -1
-        for ($i = 0; $i -lt $sections.Count; $i++) {
-            if ($sections[$i].Version -eq $Version) {
-                $startIdx = $i
-                break
-            }
-        }
-        if ($startIdx -lt 0) {
-            Write-Error "No section found for $Version in CHANGELOG.md."
-            exit 1
-        }
-
-        $selected = @()
-        if ($sections[$startIdx].Body) { $selected += $sections[$startIdx].Body }
-
-        if (-not (Test-IsPrereleaseVersion -Version $Version)) {
-            for ($i = $startIdx + 1; $i -lt $sections.Count; $i++) {
-                $section = $sections[$i]
-                if (-not (Test-IsPrereleaseVersion -Version $section.Version)) { break }
-                if ($section.Body) {
-                    $selected += "## $($section.Version)`n`n$($section.Body)"
-                }
-            }
-        }
-
-        Write-Output (($selected -join "`n`n").Trim())
-        return
-    }
-
+    $content = Read-TextUtf8 -Path $ChangelogPath
     $section = Find-UnreleasedSection -Content $content
-    if (-not $section) { Write-Error "No '## Unreleased' section found."; exit 1 }
-    $bodyStart = $section.StartIdx + 1
-    $bodyEnd   = $section.EndIdx - 1
-    $bodyLines = if ($bodyEnd -ge $bodyStart) { $section.Lines[$bodyStart..$bodyEnd] } else { @() }
-    Write-Output (($bodyLines -join "`n").Trim())
-    return
+    if (-not $section) {
+        throw "$ChangelogPath is missing the '## Unreleased' section. Cannot promote."
+    }
+
+    $bodyLines = @(Get-SectionBodyLine -Section $section)
+    if (-not (Test-HasReleaseContent -BodyLines $bodyLines)) {
+        $bodyLines = @('', '_Maintenance release; see commit log for details._', '')
+    }
+
+    $newLines = [System.Collections.Generic.List[string]]::new()
+    if ($section.StartIndex -gt 0) {
+        $newLines.AddRange([string[]] $section.Lines[0..($section.StartIndex - 1)])
+    }
+    $newLines.AddRange([string[]] @('## Unreleased', '', '_No notable changes since the last release._', '', '---', ''))
+    $newLines.Add($heading)
+    $newLines.AddRange([string[]] $bodyLines)
+    $newLines.AddRange([string[]] @(Get-SectionTailLine -Section $section))
+
+    Write-TextUtf8 -Path $ChangelogPath -Content ($newLines -join "`n")
+    Write-Host "Promoted Unreleased -> $heading."
 }
+
+function Get-VersionNote {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string] $Content, [string] $Version)
+
+    if (-not $Version) { throw 'Notes -ForVersion requires -Version.' }
+
+    $sections = @(Get-VersionSection -Content $Content)
+    $startIndex = -1
+    for ($i = 0; $i -lt $sections.Count; $i++) {
+        if ($sections[$i].Version -eq $Version) {
+            $startIndex = $i
+            break
+        }
+    }
+    if ($startIndex -lt 0) { throw "No section found for $Version in CHANGELOG.md." }
+
+    $selected = [System.Collections.Generic.List[string]]::new()
+    if ($sections[$startIndex].Body) { $selected.Add($sections[$startIndex].Body) }
+
+    if (-not (Test-IsPrereleaseVersion -Version $Version)) {
+        for ($i = $startIndex + 1; $i -lt $sections.Count; $i++) {
+            $section = $sections[$i]
+            if (-not (Test-IsPrereleaseVersion -Version $section.Version)) { break }
+            if ($section.Body) {
+                $selected.Add("## $($section.Version)`n`n$($section.Body)")
+            }
+        }
+    }
+
+    return ($selected -join "`n`n").Trim()
+}
+
+function Get-UnreleasedNote {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string] $Content)
+
+    $section = Find-UnreleasedSection -Content $Content
+    if (-not $section) { throw "No '## Unreleased' section found." }
+    return (@(Get-SectionBodyLine -Section $section) -join "`n").Trim()
+}
+
+if (-not $RepoRoot) {
+    $RepoRoot = [IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($PSScriptRoot))
+}
+
+$rootChangelog = Join-Path -Path $RepoRoot -ChildPath 'CHANGELOG.md'
+if (-not (Test-Path -LiteralPath $rootChangelog)) { throw "CHANGELOG.md not found at $rootChangelog" }
+
+switch ($Mode) {
+    'Append' { Add-ChangelogEntry -Range $Range -RepoRoot $RepoRoot -ChangelogPath $rootChangelog }
+    'Promote' { Publish-UnreleasedSection -Version $Version -Repo $Repo -ChangelogPath $rootChangelog }
+    'Notes' {
+        $content = Read-TextUtf8 -Path $rootChangelog
+        if ($ForVersion) {
+            Get-VersionNote -Content $content -Version $Version
+        } else {
+            Get-UnreleasedNote -Content $content
+        }
+    }
+}
+exit 0

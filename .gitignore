@@ -12,6 +12,9 @@ Build/
 Builds/
 [Aa]ssetStoreTools/
 *.csproj
+!.github/lint/unity/*/*.csproj
+.github/lint/unity/**/bin/
+.github/lint/unity/**/obj/
 *.sln
 *.unityproj
 *.user

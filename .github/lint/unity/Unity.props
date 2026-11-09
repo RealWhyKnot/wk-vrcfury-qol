@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <NoStdLib>true</NoStdLib>
+    <NoCompilerStandardLib>true</NoCompilerStandardLib>
+    <UnityData>$(ProgramFiles)\Unity\Hub\Editor\2022.3.22f1\Editor\Data</UnityData>
+    <UnityApi>$(UnityData)\UnityReferenceAssemblies\unity-4.8-api</UnityApi>
+    <Pkg>$(MSBuildThisFileDirectory)..\..\..</Pkg>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(UnityApi)\mscorlib.dll;$(UnityApi)\System.dll;$(UnityApi)\System.Core.dll;$(UnityApi)\Microsoft.CSharp.dll;$(UnityApi)\System.ComponentModel.Composition.dll;$(UnityApi)\System.Data.dll;$(UnityApi)\System.Data.DataSetExtensions.dll;$(UnityApi)\System.Drawing.dll;$(UnityApi)\System.IO.Compression.dll;$(UnityApi)\System.IO.Compression.FileSystem.dll;$(UnityApi)\System.Net.Http.dll;$(UnityApi)\System.Numerics.dll;$(UnityApi)\System.Numerics.Vectors.dll;$(UnityApi)\System.Runtime.Serialization.dll;$(UnityApi)\System.Transactions.dll;$(UnityApi)\System.Xml.dll;$(UnityApi)\System.Xml.Linq.dll" Private="false" />
+    <Reference Include="$(UnityApi)\Facades\*.dll" Private="false" />
+    <Reference Include="$(UnityData)\Managed\UnityEngine\*.dll" Private="false" />
+  </ItemGroup>
+</Project>

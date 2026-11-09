@@ -1,78 +1,62 @@
-// ReplaceReferencesWindow.cs
-//
-// EditorWindow that lists every Object reference inside any VRCFury component
-// on a set of selected GameObjects, GROUPED BY the underlying object so each
-// unique reference appears once with one drop target. Dragging a
-// replacement onto the rows they want to swap and clicks Apply - every
-// occurrence of that object across the scan is replaced in a single Undo step.
-//
-// Per-selection "include children" toggles let you scan a GameObject without
-// recursing into its descendants - useful when two avatars share a parent or
-// when you want to pin the scan to a single component.
-//
-// Why SerializedObject + SerializedProperty.NextVisible(true) instead of raw
-// reflection: VRCFury features are [SerializeReference] polymorphic graphs,
-// and Unity's SerializedProperty already descends into them safely. This is
-// also future-proof - if VRCFury renames internal fields but keeps them
-// serialized, the walk still works because we only care about
-// `propertyType == ObjectReference`.
+#nullable enable
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using UmeVrcfQol.Internal.Styling;
 using UnityEditor;
 using UnityEngine;
-using UmeVrcfQol.Internal.Styling;
-using UmeVrcfQol.Internal.Utilities;
+using Object = UnityEngine.Object;
 
-namespace UmeVrcfQol.Tools {
-
-    internal sealed partial class ReplaceReferencesWindow : EditorWindow {
-
-        // Persisted across domain reloads so the search list survives a script
-        // recompile while the window is open.
-        [SerializeField] private List<SearchRoot> _searchRoots = new List<SearchRoot>();
-
-        // Scan output. Groups are recomputed on every scan; replacements live
-        // on each group and are dropped on rescan (intentional - a domain
-        // reload may have invalidated a queued replacement target).
-        private readonly List<RefGroup> _groups = new List<RefGroup>();
+namespace UmeVrcfQol.Tools
+{
+    internal sealed partial class ReplaceReferencesWindow : EditorWindow
+    {
+        private readonly List<RefGroup> _groups = new();
+        private List<SearchRoot> _searchRoots = new();
         private bool _hideUnchanged;
         private string _scanSummary = "";
 
         private Vector2 _rootsScroll;
         private Vector2 _groupsScroll;
         private Vector2 _pageScroll;
-        private string _autoSizeSignature;
+        private string? _autoSizeSignature;
 
-        // ---------------- Public entry point ------------------------------
-
-        internal static void Open(bool prefillFromSelection) {
-            var w = GetWindow<ReplaceReferencesWindow>(false, "Replace References", true);
+        internal static void Open(bool prefillFromSelection)
+        {
+            ReplaceReferencesWindow w = GetWindow<ReplaceReferencesWindow>(utility: false, "Replace References", focus: true);
             w.titleContent = WkStyles.TitleContent("WhyKnot - Replace VRCFury References");
             w.minSize = new Vector2(620, 460);
-            if (prefillFromSelection) {
-                w._searchRoots = Selection.gameObjects
-                    .Where(g => g != null)
-                    .Distinct()
-                    .Select(g => new SearchRoot { GameObject = g, IncludeChildren = true })
-                    .ToList();
+            if (prefillFromSelection)
+            {
+                w._searchRoots = SelectedRoots();
                 w.Rescan();
             }
             w.Show();
             w.Focus();
         }
 
-        // ---------------- GUI ---------------------------------------------
+        private static List<SearchRoot> SelectedRoots()
+        {
+            return Selection.gameObjects
+                .Where(g => g != null)
+                .Distinct()
+                .Select(g => new SearchRoot(g, includeChildren: true))
+                .ToList();
+        }
 
-        private void OnGUI() {
-            using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
-            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
+        private void OnGUI()
+        {
+            using IDisposable themeScope = WkStyles.Scope(WkTheme.VRCFury);
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(expand: true), GUILayout.ExpandHeight(expand: true)))
+            {
                 WkStyles.TitleBar("Replace References");
 
                 using (var s = new EditorGUILayout.ScrollViewScope(
-                        _pageScroll, false, false,
-                        GUILayout.ExpandWidth(true),
-                        GUILayout.ExpandHeight(true))) {
+                        _pageScroll, alwaysShowHorizontal: false, alwaysShowVertical: false,
+                        GUILayout.ExpandWidth(expand: true),
+                        GUILayout.ExpandHeight(expand: true)))
+                {
                     _pageScroll = s.scrollPosition;
                     DrawIntro();
                     DrawSearchRoots();
@@ -88,79 +72,120 @@ namespace UmeVrcfQol.Tools {
             RequestAutoSize();
         }
 
-        private static void DrawIntro() {
+        private static void DrawIntro()
+        {
             EditorGUILayout.HelpBox(
                 "Replace references in three steps: choose the GameObjects to search, drop the new object onto each row you want to change, then apply the queued replacements.",
                 MessageType.Info);
         }
 
-        // -------- Search roots panel --------
-
-        private void DrawSearchRoots() {
+        private void DrawSearchRoots()
+        {
             EditorGUILayout.LabelField(
                 new GUIContent("1. Search these GameObjects",
                     "Pick the avatar, outfit, or prop roots that contain the VRCFury components you want to scan."),
                 EditorStyles.boldLabel);
             using (new EditorGUILayout.VerticalScope(
                     EditorStyles.helpBox,
-                    GUILayout.Height(WkStyles.CappedListHeight(_searchRoots.Count, 24f, 60f, 150f)))) {
+                    GUILayout.Height(WkStyles.CappedListHeight(_searchRoots.Count, 24f, 60f, 150f))))
+            {
                 _rootsScroll = EditorGUILayout.BeginScrollView(_rootsScroll);
-                if (_searchRoots.Count == 0) {
+                if (_searchRoots.Count == 0)
+                {
                     EditorGUILayout.LabelField(
                         new GUIContent("Select GameObjects in the Hierarchy, then click 'Use selected'.",
                             "The scan only looks inside the GameObjects listed here."),
                         EditorStyles.centeredGreyMiniLabel);
-                } else {
-                    int removeIndex = -1;
-                    bool dirty = false;
-                    for (int i = 0; i < _searchRoots.Count; i++) {
-                        var entry = _searchRoots[i];
-                        using (new EditorGUILayout.HorizontalScope()) {
-                            var newGo = (GameObject)EditorGUILayout.ObjectField(
-                                GUIContent.none, entry.GameObject, typeof(GameObject), allowSceneObjects: true);
-                            if (newGo != entry.GameObject) { entry.GameObject = newGo; dirty = true; }
-
-                            var newIncludeChildren = GUILayout.Toggle(entry.IncludeChildren,
-                                new GUIContent("Include children",
-                                    "When on, scan this GameObject and all descendants. Turn off to scan only this exact GameObject."),
-                                EditorStyles.miniButton, GUILayout.Width(108));
-                            if (newIncludeChildren != entry.IncludeChildren) {
-                                entry.IncludeChildren = newIncludeChildren;
-                                dirty = true;
-                            }
-
-                            if (GUILayout.Button(new GUIContent("x", "Remove this GameObject from the search list."),
-                                    EditorStyles.miniButton, GUILayout.Width(22))) {
-                                removeIndex = i;
-                            }
-                        }
-                    }
-                    if (removeIndex >= 0) { _searchRoots.RemoveAt(removeIndex); dirty = true; }
-                    if (dirty) Rescan();
+                }
+                else if (DrawSearchRootRows())
+                {
+                    Rescan();
                 }
                 EditorGUILayout.EndScrollView();
             }
-            using (new EditorGUILayout.HorizontalScope()) {
+
+            DrawSearchRootButtons();
+        }
+
+        private bool DrawSearchRootRows()
+        {
+            int removeIndex = -1;
+            bool dirty = false;
+            for (int i = 0; i < _searchRoots.Count; i++)
+            {
+                dirty |= DrawSearchRootRow(_searchRoots[i], out bool remove);
+                if (remove)
+                {
+                    removeIndex = i;
+                }
+            }
+
+            if (removeIndex >= 0)
+            {
+                _searchRoots.RemoveAt(removeIndex);
+                dirty = true;
+            }
+
+            return dirty;
+        }
+
+        private static bool DrawSearchRootRow(SearchRoot entry, out bool remove)
+        {
+            bool dirty = false;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var newGo = (GameObject)EditorGUILayout.ObjectField(
+                    GUIContent.none, entry.GameObject, typeof(GameObject), allowSceneObjects: true);
+                if (newGo != entry.GameObject)
+                {
+                    entry.GameObject = newGo;
+                    dirty = true;
+                }
+
+                bool newIncludeChildren = GUILayout.Toggle(entry.IncludeChildren,
+                    new GUIContent("Include children",
+                        "When on, scan this GameObject and all descendants. Turn off to scan only this exact GameObject."),
+                    EditorStyles.miniButton, GUILayout.Width(108));
+                if (newIncludeChildren != entry.IncludeChildren)
+                {
+                    entry.IncludeChildren = newIncludeChildren;
+                    dirty = true;
+                }
+
+                remove = GUILayout.Button(new GUIContent("x", "Remove this GameObject from the search list."),
+                    EditorStyles.miniButton, GUILayout.Width(22));
+            }
+
+            return dirty;
+        }
+
+        private void DrawSearchRootButtons()
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
                 if (GUILayout.Button(new GUIContent("Use selected",
-                        "Replace the search list with the currently selected GameObjects."))) {
-                    _searchRoots = Selection.gameObjects
-                        .Where(g => g != null)
-                        .Distinct()
-                        .Select(g => new SearchRoot { GameObject = g, IncludeChildren = true })
-                        .ToList();
+                        "Replace the search list with the currently selected GameObjects.")))
+                {
+                    _searchRoots = SelectedRoots();
                     Rescan();
                 }
                 if (GUILayout.Button(new GUIContent("Add selected",
-                        "Add the currently selected GameObjects to the search list."))) {
-                    foreach (var g in Selection.gameObjects) {
-                        if (g == null) continue;
-                        if (_searchRoots.Any(r => r.GameObject == g)) continue;
-                        _searchRoots.Add(new SearchRoot { GameObject = g, IncludeChildren = true });
+                        "Add the currently selected GameObjects to the search list.")))
+                {
+                    foreach (GameObject g in Selection.gameObjects)
+                    {
+                        if (g == null || _searchRoots.Exists(r => r.GameObject == g))
+                        {
+                            continue;
+                        }
+
+                        _searchRoots.Add(new SearchRoot(g, includeChildren: true));
                     }
                     Rescan();
                 }
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button(new GUIContent("Clear", "Empty the search list."), GUILayout.Width(70))) {
+                if (GUILayout.Button(new GUIContent("Clear", "Empty the search list."), GUILayout.Width(70)))
+                {
                     _searchRoots.Clear();
                     _groups.Clear();
                     _scanSummary = "";
@@ -168,10 +193,10 @@ namespace UmeVrcfQol.Tools {
             }
         }
 
-        // -------- Groups list --------
-
-        private void DrawGroups() {
-            using (new EditorGUILayout.HorizontalScope()) {
+        private void DrawGroups()
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
                 int queued = _groups.Count(g => g.HasReplacement);
                 EditorGUILayout.LabelField(_groups.Count > 0
                         ? $"2. Pick replacements ({_groups.Count} unique, {queued} queued)"
@@ -182,22 +207,34 @@ namespace UmeVrcfQol.Tools {
                     new GUIContent("Show queued only", "Only show rows that already have a replacement queued."),
                     EditorStyles.miniButton, GUILayout.Width(118));
             }
-            if (!string.IsNullOrEmpty(_scanSummary)) {
+            if (!string.IsNullOrEmpty(_scanSummary))
+            {
                 EditorGUILayout.LabelField(_scanSummary, EditorStyles.miniLabel);
             }
 
-            var visibleGroups = _groups.Count(g => !_hideUnchanged || g.HasReplacement);
+            int visibleGroups = _groups.Count(g => !_hideUnchanged || g.HasReplacement);
             using (new EditorGUILayout.VerticalScope(
                     EditorStyles.helpBox,
-                    GUILayout.Height(WkStyles.CappedListHeight(visibleGroups, 42f, 140f, 320f)))) {
+                    GUILayout.Height(WkStyles.CappedListHeight(visibleGroups, 42f, 140f, 320f))))
+            {
                 _groupsScroll = EditorGUILayout.BeginScrollView(_groupsScroll);
-                if (_searchRoots.Count == 0) {
+                if (_searchRoots.Count == 0)
+                {
                     EditorGUILayout.LabelField("Step 1: add GameObjects above to begin.", EditorStyles.centeredGreyMiniLabel);
-                } else if (_groups.Count == 0) {
+                }
+                else if (_groups.Count == 0)
+                {
                     EditorGUILayout.LabelField("No replaceable object references found in the selected roots.", EditorStyles.centeredGreyMiniLabel);
-                } else {
-                    foreach (var g in _groups) {
-                        if (_hideUnchanged && !g.HasReplacement) continue;
+                }
+                else
+                {
+                    foreach (RefGroup g in _groups)
+                    {
+                        if (_hideUnchanged && !g.HasReplacement)
+                        {
+                            continue;
+                        }
+
                         DrawGroupRow(g);
                     }
                 }
@@ -205,113 +242,163 @@ namespace UmeVrcfQol.Tools {
             }
         }
 
-        private void DrawGroupRow(RefGroup g) {
-            using (new EditorGUILayout.HorizontalScope()) {
+        private static void DrawGroupRow(RefGroup g)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
                 GUILayout.Space(4);
-                using (new EditorGUILayout.VerticalScope()) {
-                    using (new EditorGUILayout.HorizontalScope()) {
-                        var typeName = g.CurrentValue == null ? "Object" : g.CurrentValue.GetType().Name;
-                        EditorGUILayout.LabelField(
-                            $"{(g.CurrentValue == null ? "(null)" : g.CurrentValue.name)}  ({typeName})",
-                            EditorStyles.boldLabel);
-                        GUILayout.FlexibleSpace();
-                        EditorGUILayout.LabelField(
-                            g.Sites.Count == 1 ? "1 reference" : $"{g.Sites.Count} references",
-                            EditorStyles.miniLabel, GUILayout.Width(110));
-                    }
-                    using (new EditorGUILayout.HorizontalScope()) {
-                        EditorGUILayout.LabelField(
-                            new GUIContent("Current", "The object currently used by one or more VRCFury fields."),
-                            GUILayout.Width(82));
-                        using (new EditorGUI.DisabledScope(true)) {
-                            EditorGUILayout.ObjectField(g.CurrentValue, typeof(Object), allowSceneObjects: true);
-                        }
-                    }
-                    using (new EditorGUILayout.HorizontalScope()) {
-                        EditorGUILayout.LabelField(
-                            new GUIContent("Replace with", "Drop the object that should replace the current one. Leave empty to keep this row unchanged."),
-                            GUILayout.Width(82));
-                        var newReplacement = EditorGUILayout.ObjectField(
-                            g.Replacement, typeof(Object), allowSceneObjects: true);
-                        if (newReplacement != g.Replacement) g.Replacement = newReplacement;
-                    }
-                    if (g.Sites.Count > 1) {
-                        g.Foldout = EditorGUILayout.Foldout(g.Foldout, $"Locations ({g.Sites.Count})", true);
-                        if (g.Foldout) {
-                            EditorGUI.indentLevel++;
-                            foreach (var s in g.Sites) {
-                                using (new EditorGUILayout.HorizontalScope()) {
-                                    EditorGUILayout.LabelField(
-                                        $"• {s.GameObjectPath} ▸ {s.FeatureType}",
-                                        EditorStyles.miniLabel);
-                                    if (GUILayout.Button(new GUIContent("Ping", "Highlight this VRCFury component in the Hierarchy."),
-                                            EditorStyles.miniButton, GUILayout.Width(44))) {
-                                        if (s.VrcfComponent != null) EditorGUIUtility.PingObject(s.VrcfComponent);
-                                    }
-                                }
-                                EditorGUILayout.LabelField($"   {s.PropertyPath}", EditorStyles.miniLabel);
-                            }
-                            EditorGUI.indentLevel--;
-                        }
-                    } else if (g.Sites.Count == 1) {
-                        var s = g.Sites[0];
-                        EditorGUILayout.LabelField(
-                            $"{s.GameObjectPath}  ▸  {s.FeatureType}  —  {s.PropertyPath}",
-                            EditorStyles.miniLabel);
-                    }
+                using (new EditorGUILayout.VerticalScope())
+                {
+                    DrawGroupHeader(g);
+                    DrawGroupFields(g);
+                    DrawGroupSites(g);
                 }
                 if (GUILayout.Button(new GUIContent("Ping", "Highlight one of the VRCFury components in the Hierarchy."),
-                        EditorStyles.miniButton, GUILayout.Width(44))) {
-                    var first = g.Sites.FirstOrDefault();
-                    if (first != null && first.VrcfComponent != null)
-                        EditorGUIUtility.PingObject(first.VrcfComponent);
+                        EditorStyles.miniButton, GUILayout.Width(44))
+                    && g.Sites.Count > 0
+                    && g.Sites[0].VrcfComponent != null)
+                {
+                    EditorGUIUtility.PingObject(g.Sites[0].VrcfComponent);
                 }
             }
             EditorGUILayout.Space(2);
             DrawSubtleDivider();
         }
 
-        // -------- Apply bar --------
+        private static void DrawGroupHeader(RefGroup g)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                string typeName = g.CurrentValue == null ? "Object" : g.CurrentValue.GetType().Name;
+                EditorGUILayout.LabelField(
+                    $"{(g.CurrentValue == null ? "(null)" : g.CurrentValue.name)}  ({typeName})",
+                    EditorStyles.boldLabel);
+                GUILayout.FlexibleSpace();
+                EditorGUILayout.LabelField(
+                    g.Sites.Count == 1 ? "1 reference" : $"{g.Sites.Count} references",
+                    EditorStyles.miniLabel, GUILayout.Width(110));
+            }
+        }
 
-        private void DrawApplyBar() {
-            using (new EditorGUILayout.HorizontalScope()) {
+        private static void DrawGroupFields(RefGroup g)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(
+                    new GUIContent("Current", "The object currently used by one or more VRCFury fields."),
+                    GUILayout.Width(82));
+                using (new EditorGUI.DisabledScope(disabled: true))
+                {
+                    EditorGUILayout.ObjectField(g.CurrentValue, typeof(Object), allowSceneObjects: true);
+                }
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField(
+                    new GUIContent("Replace with", "Drop the object that should replace the current one. Leave empty to keep this row unchanged."),
+                    GUILayout.Width(82));
+                Object newReplacement = EditorGUILayout.ObjectField(
+                    g.Replacement, typeof(Object), allowSceneObjects: true);
+                if (newReplacement != g.Replacement)
+                {
+                    g.Replacement = newReplacement;
+                }
+            }
+        }
+
+        private static void DrawGroupSites(RefGroup g)
+        {
+            if (g.Sites.Count == 1)
+            {
+                RefSite only = g.Sites[0];
+                EditorGUILayout.LabelField(
+                    $"{only.GameObjectPath}  ▸  {only.FeatureType}  —  {only.PropertyPath}",
+                    EditorStyles.miniLabel);
+                return;
+            }
+
+            if (g.Sites.Count == 0)
+            {
+                return;
+            }
+
+            g.Foldout = EditorGUILayout.Foldout(g.Foldout, $"Locations ({g.Sites.Count})", toggleOnLabelClick: true);
+            if (!g.Foldout)
+            {
+                return;
+            }
+
+            EditorGUI.indentLevel++;
+            foreach (RefSite s in g.Sites)
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(
+                        $"• {s.GameObjectPath} ▸ {s.FeatureType}",
+                        EditorStyles.miniLabel);
+                    if (GUILayout.Button(new GUIContent("Ping", "Highlight this VRCFury component in the Hierarchy."),
+                            EditorStyles.miniButton, GUILayout.Width(44))
+                        && s.VrcfComponent != null)
+                    {
+                        EditorGUIUtility.PingObject(s.VrcfComponent);
+                    }
+                }
+                EditorGUILayout.LabelField($"   {s.PropertyPath}", EditorStyles.miniLabel);
+            }
+            EditorGUI.indentLevel--;
+        }
+
+        private void DrawApplyBar()
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
                 int queuedSites = _groups.Where(g => g.HasReplacement).Sum(g => g.Sites.Count);
-                using (new EditorGUI.DisabledScope(queuedSites == 0)) {
-                    var label = queuedSites > 0
+                using (new EditorGUI.DisabledScope(queuedSites == 0))
+                {
+                    string label = queuedSites > 0
                         ? $"3. Apply {queuedSites} Replacement{(queuedSites == 1 ? "" : "s")}"
                         : "3. Apply";
                     if (GUILayout.Button(new GUIContent(label,
                             "Apply every queued replacement in one Undo step. Rows without a replacement are left untouched."),
-                        GUILayout.Height(24), GUILayout.MinWidth(180))) {
+                        GUILayout.Height(24), GUILayout.MinWidth(180)))
+                    {
                         Apply();
                     }
                 }
-                using (new EditorGUI.DisabledScope(_searchRoots.Count == 0)) {
+                using (new EditorGUI.DisabledScope(_searchRoots.Count == 0))
+                {
                     if (GUILayout.Button(new GUIContent("Re-scan", "Re-scan the search roots and refresh the reference list."),
-                            GUILayout.Height(24), GUILayout.Width(88))) {
+                            GUILayout.Height(24), GUILayout.Width(88)))
+                    {
                         Rescan();
                     }
                 }
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button(new GUIContent("Close", "Close this window. No queued replacements are applied."),
-                        GUILayout.Height(24), GUILayout.Width(80))) Close();
+                        GUILayout.Height(24), GUILayout.Width(80)))
+                {
+                    Close();
+                }
             }
         }
 
-        private static void DrawDivider() {
-            var rect = EditorGUILayout.GetControlRect(false, 1);
+        private static void DrawDivider()
+        {
+            Rect rect = EditorGUILayout.GetControlRect(hasLabel: false, 1);
             EditorGUI.DrawRect(rect, new Color(0, 0, 0, 0.18f));
         }
 
-        private static void DrawSubtleDivider() {
-            var rect = EditorGUILayout.GetControlRect(false, 1);
+        private static void DrawSubtleDivider()
+        {
+            Rect rect = EditorGUILayout.GetControlRect(hasLabel: false, 1);
             EditorGUI.DrawRect(rect, new Color(0, 0, 0, 0.06f));
         }
 
-        private void RequestAutoSize() {
-            var queued = _groups.Where(g => g.HasReplacement).Sum(g => g.Sites.Count);
-            var visibleGroups = _groups.Count(g => !_hideUnchanged || g.HasReplacement);
-            var signature = $"{_searchRoots.Count}|{_groups.Count}|{visibleGroups}|{queued}|{_hideUnchanged}|{_scanSummary}";
+        private void RequestAutoSize()
+        {
+            int queued = _groups.Where(g => g.HasReplacement).Sum(g => g.Sites.Count);
+            int visibleGroups = _groups.Count(g => !_hideUnchanged || g.HasReplacement);
+            string signature = $"{_searchRoots.Count}|{_groups.Count}|{visibleGroups}|{queued}|{_hideUnchanged}|{_scanSummary}";
             var preferred = new Vector2(
                 _groups.Count > 0 ? 820f : 640f,
                 300f
@@ -325,8 +412,5 @@ namespace UmeVrcfQol.Tools {
                 preferred,
                 new Vector2(980f, 800f));
         }
-
-
-
     }
 }

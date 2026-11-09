@@ -1,36 +1,26 @@
-// MissingReferenceWindow.cs
-//
-// Non-modal window listing missing Object references found by
-// MissingReferenceWarningTool. Pops automatically on startup / scene-open
-// when there's anything to report; can also be opened manually from
-// Tools/WhyKnot/wk-vrcfury-qol/Check for missing references...
-//
-// Closing the window in auto-show mode marks the session as dismissed so
-// the warning won't pop again until the next assembly reload. Manually
-// opened instances don't set the dismiss flag (the user opened it on
-// purpose; closing isn't a dismissal).
+#nullable enable
 
+using System;
 using System.Collections.Generic;
+using UmeVrcfQol.Internal.Styling;
 using UnityEditor;
 using UnityEngine;
-using UmeVrcfQol.Internal.Styling;
 
-namespace UmeVrcfQol.Tools {
-
-    internal sealed class MissingReferenceWindow : EditorWindow {
-
+namespace UmeVrcfQol.Tools
+{
+    internal sealed class MissingReferenceWindow : EditorWindow
+    {
         private List<MissingReferenceWarningTool.MissingRef> _missing =
-            new List<MissingReferenceWarningTool.MissingRef>();
-        // Bool flags survive domain reloads; the list is rebuilt by Scan().
+            new();
         [SerializeField] private bool _shouldDismissOnClose;
         [SerializeField] private bool _autoShow;
         private Vector2 _scroll;
-        private string _autoSizeSignature;
+        private string? _autoSizeSignature;
 
-        // ------ Open variants ----------------------------------------------
 
-        internal static void OpenAuto(List<MissingReferenceWarningTool.MissingRef> missing) {
-            var w = GetWindow<MissingReferenceWindow>(false, "Missing References", true);
+        internal static void OpenAuto(List<MissingReferenceWarningTool.MissingRef> missing)
+        {
+            MissingReferenceWindow w = GetWindow<MissingReferenceWindow>(utility: false, "Missing References", focus: true);
             w.titleContent = WkStyles.TitleContent("WhyKnot - Missing VRCFury References");
             w._missing = missing ?? new List<MissingReferenceWarningTool.MissingRef>();
             w._shouldDismissOnClose = true;
@@ -39,8 +29,9 @@ namespace UmeVrcfQol.Tools {
             w.Show();
         }
 
-        internal static void OpenManual(List<MissingReferenceWarningTool.MissingRef> missing) {
-            var w = GetWindow<MissingReferenceWindow>(false, "Missing References", true);
+        internal static void OpenManual(List<MissingReferenceWarningTool.MissingRef> missing)
+        {
+            MissingReferenceWindow w = GetWindow<MissingReferenceWindow>(utility: false, "Missing References", focus: true);
             w.titleContent = WkStyles.TitleContent("WhyKnot - Missing VRCFury References");
             w._missing = missing ?? new List<MissingReferenceWarningTool.MissingRef>();
             w._shouldDismissOnClose = false;
@@ -50,28 +41,32 @@ namespace UmeVrcfQol.Tools {
             w.Focus();
         }
 
-        // ------ Lifecycle ---------------------------------------------------
+        private void OnEnable()
+        {
 
-        private void OnEnable() {
-            // Domain reload nukes the un-serialized list. Rescan so the
-            // window has something to show until the InitializeOnLoad
-            // re-populates via OpenAuto/OpenManual.
-            if (_missing == null || _missing.Count == 0) {
+
+
+            if (_missing == null || _missing.Count == 0)
+            {
                 _missing = MissingReferenceWarningTool.Scan();
             }
         }
 
-        private void OnDestroy() {
-            if (_shouldDismissOnClose) {
+        private void OnDestroy()
+        {
+            if (_shouldDismissOnClose)
+            {
                 MissingReferenceWarningTool.MarkDismissedThisSession();
             }
         }
 
-        // ------ GUI ---------------------------------------------------------
 
-        private void OnGUI() {
-            using var _wkTheme = WkStyles.Scope(WkTheme.VRCFury);
-            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true))) {
+
+        private void OnGUI()
+        {
+            using IDisposable themeScope = WkStyles.Scope(WkTheme.VRCFury);
+            using (new EditorGUILayout.VerticalScope(GUILayout.ExpandWidth(expand: true), GUILayout.ExpandHeight(expand: true)))
+            {
                 WkStyles.TitleBar("Missing References");
                 DrawHeader();
                 DrawDivider();
@@ -81,14 +76,18 @@ namespace UmeVrcfQol.Tools {
             }
             RequestAutoSize();
         }
-
-        private void DrawHeader() {
-            using (new EditorGUILayout.HorizontalScope()) {
-                if (_missing.Count == 0) {
+        private void DrawHeader()
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (_missing.Count == 0)
+                {
                     EditorGUILayout.HelpBox(
                         "No missing references found. VRCFury components look healthy.",
                         MessageType.Info);
-                } else {
+                }
+                else
+                {
                     EditorGUILayout.HelpBox(
                         $"{_missing.Count} missing reference{(_missing.Count == 1 ? "" : "s")} on VRCFury component(s). " +
                         (_autoShow
@@ -100,20 +99,27 @@ namespace UmeVrcfQol.Tools {
             }
         }
 
-        private void DrawList() {
+        private void DrawList()
+        {
             using (new EditorGUILayout.VerticalScope(
                     EditorStyles.helpBox,
-                    GUILayout.Height(WkStyles.CappedListHeight(_missing.Count, 28f, 120f, 260f)))) {
+                    GUILayout.Height(WkStyles.CappedListHeight(_missing.Count, 28f, 120f, 260f))))
+            {
                 _scroll = EditorGUILayout.BeginScrollView(_scroll);
-                if (_missing.Count == 0) {
+                if (_missing.Count == 0)
+                {
                     EditorGUILayout.LabelField(
                         "Click Re-scan to check again.",
                         EditorStyles.centeredGreyMiniLabel);
-                } else {
-                    string lastGroup = null;
-                    foreach (var m in _missing) {
-                        var group = $"{m.GameObjectPath}  ▸  {m.FeatureType}";
-                        if (group != lastGroup) {
+                }
+                else
+                {
+                    string? lastGroup = null;
+                    foreach (MissingReferenceWarningTool.MissingRef m in _missing)
+                    {
+                        string group = $"{m.GameObjectPath}  ▸  {m.FeatureType}";
+                        if (!string.Equals(group, lastGroup, StringComparison.Ordinal))
+                        {
                             EditorGUILayout.LabelField(group, EditorStyles.boldLabel);
                             lastGroup = group;
                         }
@@ -124,18 +130,23 @@ namespace UmeVrcfQol.Tools {
             }
         }
 
-        private void DrawRow(MissingReferenceWarningTool.MissingRef m) {
-            using (new EditorGUILayout.HorizontalScope()) {
+        private static void DrawRow(MissingReferenceWarningTool.MissingRef m)
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
                 GUILayout.Space(8);
-                using (new EditorGUILayout.VerticalScope()) {
+                using (new EditorGUILayout.VerticalScope())
+                {
                     EditorGUILayout.LabelField(m.PropertyPath, EditorStyles.miniLabel);
                     EditorGUILayout.LabelField(
                         $"missing — instanceID was {m.InstanceID}",
                         EditorStyles.miniLabel);
                 }
                 if (GUILayout.Button(new GUIContent("Ping", "Highlight the affected VRCFury component."),
-                        EditorStyles.miniButton, GUILayout.Width(50))) {
-                    if (m.VrcfComponent != null) {
+                        EditorStyles.miniButton, GUILayout.Width(50)))
+                {
+                    if (m.VrcfComponent != null)
+                    {
                         Selection.activeObject = m.VrcfComponent;
                         EditorGUIUtility.PingObject(m.VrcfComponent);
                     }
@@ -144,11 +155,14 @@ namespace UmeVrcfQol.Tools {
             EditorGUILayout.Space(2);
         }
 
-        private void DrawFooter() {
-            using (new EditorGUILayout.HorizontalScope()) {
+        private void DrawFooter()
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button(new GUIContent("Re-scan", "Walk the scenes again and refresh the list."),
-                        GUILayout.Height(22), GUILayout.Width(100))) {
+                        GUILayout.Height(22), GUILayout.Width(100)))
+                {
                     _missing = MissingReferenceWarningTool.Scan();
                 }
                 string closeLabel = _shouldDismissOnClose ? "Dismiss" : "Close";
@@ -156,15 +170,17 @@ namespace UmeVrcfQol.Tools {
                         _shouldDismissOnClose
                             ? "Close this warning for the rest of this editor session."
                             : "Close this window."),
-                        GUILayout.Height(22), GUILayout.Width(100))) {
+                        GUILayout.Height(22), GUILayout.Width(100)))
+                {
                     Close();
                 }
             }
             WkStyles.BrandFooter();
         }
 
-        private void RequestAutoSize() {
-            var signature = $"{_missing.Count}|{_autoShow}|{_shouldDismissOnClose}";
+        private void RequestAutoSize()
+        {
+            string signature = $"{_missing.Count}|{_autoShow}|{_shouldDismissOnClose}";
             var preferred = new Vector2(
                 620f,
                 210f + WkStyles.CappedListHeight(_missing.Count, 28f, 120f, 260f));
@@ -177,8 +193,9 @@ namespace UmeVrcfQol.Tools {
                 new Vector2(820f, 620f));
         }
 
-        private static void DrawDivider() {
-            var rect = EditorGUILayout.GetControlRect(false, 1);
+        private static void DrawDivider()
+        {
+            Rect rect = EditorGUILayout.GetControlRect(hasLabel: false, 1);
             EditorGUI.DrawRect(rect, new Color(0, 0, 0, 0.18f));
         }
     }

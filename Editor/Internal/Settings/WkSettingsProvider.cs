@@ -1,64 +1,54 @@
-// WkSettingsProvider.cs
-//
-// Project Settings page for the WhyKnot tooling. The provider registers
-// no [SettingsProvider] attribute of its own; VrcfQolMenus wires the
-// static factory hook so the page shows up under "WhyKnot/<DisplayName>".
-//
-// Surfaces:
-//   - Per-registered-logger Console mirror toggles (Debug / Info /
-//     Warning / Error / Exception). Stored via WkEditorPrefs so they
-//     persist across Unity sessions and survive a domain reload.
-//   - Default theme override (WhyKnot / VRCFury).
-//   - Hot-reload watcher enabled toggle (WkEditorPrefs-backed, read by
-//     EditorHotReload on the next startup).
-//
-// Built in IMGUI rather than UI Toolkit so the same window can render
-// inside the legacy SettingsWindow + the modern Project Settings host.
+#nullable enable
 
 using System;
 using System.Linq;
-using UnityEditor;
-using UnityEngine;
 using UmeVrcfQol.Internal.Logging;
 using UmeVrcfQol.Internal.Styling;
 using UmeVrcfQol.Internal.Utilities;
+using UnityEditor;
 
-namespace UmeVrcfQol.Internal.Settings {
-
-    public static class WkSettingsProvider {
-
+namespace UmeVrcfQol.Internal.Settings
+{
+    public static class WkSettingsProvider
+    {
         public const string DefaultPath = "WhyKnot/VRCFury QoL";
         public static readonly string PrefsPackage = ResolvePrefsPackage();
+        private static readonly string[] ThemeNames = { "WhyKnot", "VRCFury" };
 
-        private static string ResolvePrefsPackage() {
-            try {
-                var assemblyName = typeof(WkSettingsProvider).Assembly.GetName().Name;
-                if (string.IsNullOrEmpty(assemblyName)) return "dev.whyknot.wk-vrcfury-qol.settings";
-                if (assemblyName.EndsWith(".HotReload.Editor", StringComparison.OrdinalIgnoreCase)) {
-                    assemblyName = assemblyName.Substring(0, assemblyName.Length - ".HotReload.Editor".Length);
-                } else if (assemblyName.EndsWith(".Editor", StringComparison.OrdinalIgnoreCase)) {
-                    assemblyName = assemblyName.Substring(0, assemblyName.Length - ".Editor".Length);
-                }
-                return assemblyName + ".settings";
-            } catch {
+        private static string ResolvePrefsPackage()
+        {
+            string? assemblyName = typeof(WkSettingsProvider).Assembly.GetName().Name;
+            if (assemblyName == null || assemblyName.Length == 0)
+            {
                 return "dev.whyknot.wk-vrcfury-qol.settings";
             }
+
+            if (assemblyName.EndsWith(".HotReload.Editor", StringComparison.OrdinalIgnoreCase))
+            {
+                assemblyName = assemblyName[..^".HotReload.Editor".Length];
+            }
+            else if (assemblyName.EndsWith(".Editor", StringComparison.OrdinalIgnoreCase))
+            {
+                assemblyName = assemblyName[..^".Editor".Length];
+            }
+
+            return assemblyName + ".settings";
         }
 
-        /// <summary>
-        /// Build a SettingsProvider that can be returned from a
-        /// [SettingsProvider]-decorated static method.
-        /// </summary>
-        public static SettingsProvider Build(string path = DefaultPath) {
-            return new SettingsProvider(path, SettingsScope.Project) {
+        public static SettingsProvider Build(string path = DefaultPath)
+        {
+            return new SettingsProvider(path, SettingsScope.Project)
+            {
                 label = "WhyKnot Tools",
                 keywords = new[] { "WhyKnot", "log", "theme", "wk" },
                 guiHandler = _ => DrawGui(),
             };
         }
 
-        private static void DrawGui() {
-            using (WkStyles.Scope(WkTheme.WhyKnot)) {
+        private static void DrawGui()
+        {
+            using (WkStyles.Scope(WkTheme.WhyKnot))
+            {
                 EditorGUILayout.LabelField("Console mirror toggles per registered package", WkStyles.SubsectionTitle);
                 DrawLoggerToggles();
                 WkStyles.Divider();
@@ -72,60 +62,60 @@ namespace UmeVrcfQol.Internal.Settings {
             }
         }
 
-        // ---- logger mirror toggles -------------------------------
-
-        private static void DrawLoggerToggles() {
-            var all = WkLoggerRegistry.All().OrderBy(l => l.PackageId).ToArray();
-            if (all.Length == 0) {
+        private static void DrawLoggerToggles()
+        {
+            WkLogger[] all = WkLoggerRegistry.All().OrderBy(l => l.PackageId, StringComparer.Ordinal).ToArray();
+            if (all.Length == 0)
+            {
                 EditorGUILayout.HelpBox("No WkLogger instances are registered.", MessageType.Info);
                 return;
             }
-            foreach (var logger in all) {
-                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox)) {
+            foreach (WkLogger? logger in all)
+            {
+                using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+                {
                     EditorGUILayout.LabelField(logger.DisplayName + "  " + logger.PackageId, WkStyles.Body);
-                    logger.MirrorDebugToConsole     = MirrorRow("Debug",     logger.PackageId, "MirrorDebug",     logger.MirrorDebugToConsole,     false);
-                    logger.MirrorInfoToConsole      = MirrorRow("Info",      logger.PackageId, "MirrorInfo",      logger.MirrorInfoToConsole,      true);
-                    logger.MirrorWarningToConsole   = MirrorRow("Warning",   logger.PackageId, "MirrorWarning",   logger.MirrorWarningToConsole,   true);
-                    logger.MirrorErrorToConsole     = MirrorRow("Error",     logger.PackageId, "MirrorError",     logger.MirrorErrorToConsole,     true);
-                    logger.MirrorExceptionToConsole = MirrorRow("Exception", logger.PackageId, "MirrorException", logger.MirrorExceptionToConsole, true);
+                    logger.MirrorDebugToConsole = MirrorRow("Debug", logger.PackageId, "MirrorDebug", logger.MirrorDebugToConsole, defaultValue: false);
+                    logger.MirrorInfoToConsole = MirrorRow("Info", logger.PackageId, "MirrorInfo", logger.MirrorInfoToConsole, defaultValue: true);
+                    logger.MirrorWarningToConsole = MirrorRow("Warning", logger.PackageId, "MirrorWarning", logger.MirrorWarningToConsole, defaultValue: true);
+                    logger.MirrorErrorToConsole = MirrorRow("Error", logger.PackageId, "MirrorError", logger.MirrorErrorToConsole, defaultValue: true);
+                    logger.MirrorExceptionToConsole = MirrorRow("Exception", logger.PackageId, "MirrorException", logger.MirrorExceptionToConsole, defaultValue: true);
                 }
             }
         }
 
-        private static bool MirrorRow(string label, string packageId, string suffix, bool currentValue, bool defaultValue) {
-            var key = "mirror." + packageId + "." + suffix;
-            var stored = WkEditorPrefs.GetBool(PrefsPackage, key, defaultValue);
-            // Reconcile: the logger's current property and the prefs value
-            // can drift if code paths set the property at runtime. Trust
-            // the more-recently-modified one by writing the logger value
-            // into prefs on each draw.
-            var displayed = currentValue;
-            var next = EditorGUILayout.Toggle("  " + label, displayed);
-            if (next != stored) {
+        private static bool MirrorRow(string label, string packageId, string suffix, bool currentValue, bool defaultValue)
+        {
+            string key = "mirror." + packageId + "." + suffix;
+            bool stored = WkEditorPrefs.GetBool(PrefsPackage, key, defaultValue);
+            bool displayed = currentValue;
+            bool next = EditorGUILayout.Toggle("  " + label, displayed);
+            if (next != stored)
+            {
                 WkEditorPrefs.SetBool(PrefsPackage, key, next);
             }
             return next;
         }
 
-        // ---- theme override --------------------------------------
-
-        private static void DrawThemeOverride() {
-            var current = WkEditorPrefs.GetString(PrefsPackage, "default-theme", "WhyKnot");
-            int index = current == "VRCFury" ? 1 : 0;
-            var next = EditorGUILayout.Popup("Default theme", index, new[] { "WhyKnot", "VRCFury" });
-            var nextName = next == 1 ? "VRCFury" : "WhyKnot";
-            if (nextName != current) {
+        private static void DrawThemeOverride()
+        {
+            string current = WkEditorPrefs.GetString(PrefsPackage, "default-theme", "WhyKnot");
+            int index = string.Equals(current, "VRCFury", StringComparison.Ordinal) ? 1 : 0;
+            int next = EditorGUILayout.Popup("Default theme", index, ThemeNames);
+            string nextName = next == 1 ? "VRCFury" : "WhyKnot";
+            if (!string.Equals(nextName, current, StringComparison.Ordinal))
+            {
                 WkEditorPrefs.SetString(PrefsPackage, "default-theme", nextName);
-                WkStyles.DefaultTheme = nextName == "VRCFury" ? WkTheme.VRCFury : WkTheme.WhyKnot;
+                WkStyles.DefaultTheme = string.Equals(nextName, "VRCFury", StringComparison.Ordinal) ? WkTheme.VRCFury : WkTheme.WhyKnot;
             }
         }
 
-        // ---- hot reload ------------------------------------------
-
-        private static void DrawHotReloadToggle() {
-            var current = WkEditorPrefs.GetBool(PrefsPackage, "hot-reload-enabled", true);
-            var next = EditorGUILayout.Toggle("Enable hot-reload watcher", current);
-            if (next != current) {
+        private static void DrawHotReloadToggle()
+        {
+            bool current = WkEditorPrefs.GetBool(PrefsPackage, "hot-reload-enabled", fallback: true);
+            bool next = EditorGUILayout.Toggle("Enable hot-reload watcher", current);
+            if (next != current)
+            {
                 WkEditorPrefs.SetBool(PrefsPackage, "hot-reload-enabled", next);
             }
             EditorGUILayout.HelpBox(

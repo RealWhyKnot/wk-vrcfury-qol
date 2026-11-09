@@ -1,31 +1,17 @@
-// DuplicateFlipbookPageTool.cs
-// Page-level operations for VRCFury's Flipbook Builder. All variants live
-// here because they share the FlipbookContext resolver and the same Undo /
-// SetDirty boilerplate.
-//
-// Inline buttons (rendered next to every "Page #N" label by the inspector
-// overlay):
-//   • Duplicate     — duplicate this page right below itself
-//   • Insert blank  — insert a new empty page right below this one
-//
-// Right-click menu (on a Flipbook page row):
-//   • WhyKnot/wk-vrcfury-qol/Duplicate page below       (priority 25)
-//   • WhyKnot/wk-vrcfury-qol/Insert empty page below    (priority 24)
-//   • WhyKnot/wk-vrcfury-qol/Duplicate page to end      (priority 20, original)
-//
-// "Below" semantics: the new page goes at index + 1 in the same flipbook.
-// Existing pages from index + 1 onward shift down.
+#nullable enable
 
 using System;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using UnityEditor;
-using UnityEngine;
 
-namespace UmeVrcfQol.Tools {
-
+namespace UmeVrcfQol.Tools
+{
     [InitializeOnLoad]
-    internal static class DuplicateFlipbookPageTool {
-
-        static DuplicateFlipbookPageTool() {
+    internal static class DuplicateFlipbookPageTool
+    {
+        static DuplicateFlipbookPageTool()
+        {
             VrcfQol.RegisterFlipbookPageTool(
                 label: "WhyKnot/wk-vrcfury-qol/Duplicate page below",
                 action: DuplicateBelow,
@@ -56,83 +42,118 @@ namespace UmeVrcfQol.Tools {
             );
         }
 
-        // ------ Actions ----------------------------------------------------
+        private static void DuplicateBelow(VrcfQol.FlipbookContext ctx)
+        {
+            if (!TryGetPages(ctx, "Duplicate Page Below", out IList? pages))
+            {
+                return;
+            }
 
-        private static void DuplicateBelow(VrcfQol.FlipbookContext ctx) {
-            if (!ValidateContext(ctx, "Duplicate Page Below", out _)) return;
-            try {
-                Undo.RegisterCompleteObjectUndo(ctx.vrcfComponent,
-                    $"Duplicate flipbook page #{ctx.pageIndex + 1} below");
-                var clone = VrcfQol.DeepClonePage(ctx.pages[ctx.pageIndex]);
-                ctx.pages.Insert(ctx.pageIndex + 1, clone);
-                VrcfQol.MarkModified(ctx.vrcfComponent);
-                VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.pageIndex + 1} " +
-                          $"as new page #{ctx.pageIndex + 2}.");
-            } catch (Exception ex) { Fail("Duplicate Page Below", ex); }
+            try
+            {
+                Undo.RegisterCompleteObjectUndo(ctx.VrcfComponent,
+                    $"Duplicate flipbook page #{ctx.PageIndex + 1} below");
+                object clone = VrcfQol.DeepClonePage(pages[ctx.PageIndex]);
+                pages.Insert(ctx.PageIndex + 1, clone);
+                VrcfQol.MarkModified(ctx.VrcfComponent);
+                VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.PageIndex + 1} " +
+                          $"as new page #{ctx.PageIndex + 2}.");
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
+                Fail("Duplicate Page Below", ex);
+            }
         }
 
-        private static void InsertEmptyBelow(VrcfQol.FlipbookContext ctx) {
-            if (!ValidateContext(ctx, "Insert Empty Page Below", out _)) return;
-            try {
-                Undo.RegisterCompleteObjectUndo(ctx.vrcfComponent,
-                    $"Insert empty flipbook page after #{ctx.pageIndex + 1}");
-                var blank = CreateEmptyPage();
-                if (blank == null) {
+        private static void InsertEmptyBelow(VrcfQol.FlipbookContext ctx)
+        {
+            if (!TryGetPages(ctx, "Insert Empty Page Below", out IList? pages))
+            {
+                return;
+            }
+
+            try
+            {
+                Undo.RegisterCompleteObjectUndo(ctx.VrcfComponent,
+                    $"Insert empty flipbook page after #{ctx.PageIndex + 1}");
+                object? blank = CreateEmptyPage();
+                if (blank == null)
+                {
                     EditorUtility.DisplayDialog("Insert Empty Page Below",
                         "Could not construct a fresh FlipBookPage. The VRCFury API may have changed.", "OK");
                     return;
                 }
-                ctx.pages.Insert(ctx.pageIndex + 1, blank);
-                VrcfQol.MarkModified(ctx.vrcfComponent);
-                VrcfQolLogger.Instance.Info($"Inserted empty flipbook page at #{ctx.pageIndex + 2}.");
-            } catch (Exception ex) { Fail("Insert Empty Page Below", ex); }
+                pages.Insert(ctx.PageIndex + 1, blank);
+                VrcfQol.MarkModified(ctx.VrcfComponent);
+                VrcfQolLogger.Instance.Info($"Inserted empty flipbook page at #{ctx.PageIndex + 2}.");
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
+                Fail("Insert Empty Page Below", ex);
+            }
         }
 
-        private static void DuplicateToEnd(VrcfQol.FlipbookContext ctx) {
-            if (!ValidateContext(ctx, "Duplicate Page", out _)) return;
-            try {
-                Undo.RegisterCompleteObjectUndo(ctx.vrcfComponent,
-                    $"Duplicate flipbook page #{ctx.pageIndex + 1}");
-                var clone = VrcfQol.DeepClonePage(ctx.pages[ctx.pageIndex]);
-                ctx.pages.Add(clone);
-                VrcfQol.MarkModified(ctx.vrcfComponent);
-                VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.pageIndex + 1} " +
-                          $"as page #{ctx.pages.Count}.");
-            } catch (Exception ex) { Fail("Duplicate Page", ex); }
+        private static void DuplicateToEnd(VrcfQol.FlipbookContext ctx)
+        {
+            if (!TryGetPages(ctx, "Duplicate Page", out IList? pages))
+            {
+                return;
+            }
+
+            try
+            {
+                Undo.RegisterCompleteObjectUndo(ctx.VrcfComponent,
+                    $"Duplicate flipbook page #{ctx.PageIndex + 1}");
+                object clone = VrcfQol.DeepClonePage(pages[ctx.PageIndex]);
+                pages.Add(clone);
+                VrcfQol.MarkModified(ctx.VrcfComponent);
+                VrcfQolLogger.Instance.Info($"Duplicated flipbook page #{ctx.PageIndex + 1} " +
+                          $"as page #{pages.Count}.");
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
+                Fail("Duplicate Page", ex);
+            }
         }
 
-        // ------ Helpers ----------------------------------------------------
-
-        private static bool ValidateContext(VrcfQol.FlipbookContext ctx, string title, out string error) {
-            error = null;
-            if (ctx.pages == null || ctx.pageIndex < 0 || ctx.pageIndex >= ctx.pages.Count) {
-                error = $"Page #{ctx.pageIndex + 1} not found.";
-                EditorUtility.DisplayDialog(title, error, "OK");
+        private static bool TryGetPages(VrcfQol.FlipbookContext ctx, string title, [NotNullWhen(true)] out IList? pages)
+        {
+            pages = ctx.Pages;
+            if (pages == null || ctx.PageIndex < 0 || ctx.PageIndex >= pages.Count)
+            {
+                pages = null;
+                EditorUtility.DisplayDialog(title, $"Page #{ctx.PageIndex + 1} not found.", "OK");
                 return false;
             }
             return true;
         }
 
-        // Produces a brand-new FlipBookPage with an empty State and an empty
-        // actions list inside. Mirrors what VRCFury would create when the
-        // user adds a page via its own "+" button.
-        private static object CreateEmptyPage() {
-            if (!VrcfQol.Reflection.TryEnsure(out _)) return null;
-            var r = VrcfQol.Reflection;
-            try {
-                var newState = Activator.CreateInstance(r.StateType);
-                var actionsList = Activator.CreateInstance(r.StateActionsField.FieldType);
+        private static object? CreateEmptyPage()
+        {
+            VrcfQol.ReflectionCache r = VrcfQol.Reflection;
+            if (!r.TryEnsure(out _))
+            {
+                return null;
+            }
+
+            try
+            {
+                object newState = Activator.CreateInstance(r.StateType);
+                object actionsList = Activator.CreateInstance(r.StateActionsField.FieldType);
                 r.StateActionsField.SetValue(newState, actionsList);
-                var page = Activator.CreateInstance(r.FlipbookPageType);
+                object page = Activator.CreateInstance(r.FlipbookPageType);
                 r.PageStateField.SetValue(page, newState);
                 return page;
-            } catch (Exception ex) {
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
                 VrcfQolLogger.Instance.Exception(ex);
                 return null;
             }
         }
 
-        private static void Fail(string title, Exception ex) {
+        private static void Fail(string title, Exception ex)
+        {
             VrcfQolLogger.Instance.Exception(ex);
             EditorUtility.DisplayDialog(title, "Operation failed. See Console.\n\n" + ex.Message, "OK");
         }

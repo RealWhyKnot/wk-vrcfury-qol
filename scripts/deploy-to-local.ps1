@@ -1,52 +1,43 @@
+#!/usr/bin/env pwsh
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [string]$AvatarPath
+    [string] $AvatarPath
 )
 
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 
-# Mirror the package contents into <AvatarPath>\Packages\<package-id>\ using
-# the same exclusion list as .github/workflows/release.yml, so what the
-# avatar project sees is byte-equivalent to what VCC users will get after a
-# release.
-#
-# Caller picks the target avatar each invocation; nothing about the host
-# filesystem is baked in.
-#
-# Compatible with Windows PowerShell 5.1 (no &&, no ??, no ternary).
-
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$packageJsonPath = Join-Path $repoRoot 'package.json'
-if (-not (Test-Path $packageJsonPath)) {
-    Write-Error "package.json not found at $packageJsonPath"
+$repoRoot = [IO.Path]::GetDirectoryName($PSScriptRoot)
+$packageJsonPath = Join-Path -Path $repoRoot -ChildPath 'package.json'
+if (-not (Test-Path -LiteralPath $packageJsonPath)) {
+    [Console]::Error.WriteLine("package.json not found at $packageJsonPath")
     exit 1
 }
 
-$packageName = (Get-Content $packageJsonPath -Raw | ConvertFrom-Json).name
-if ([string]::IsNullOrEmpty($packageName)) {
-    Write-Error "package.json missing 'name' field"
+$package = [IO.File]::ReadAllText($packageJsonPath) | ConvertFrom-Json
+$nameProperty = $package.PSObject.Properties['name']
+if ($null -eq $nameProperty -or [string]::IsNullOrEmpty($nameProperty.Value)) {
+    [Console]::Error.WriteLine("package.json missing 'name' field")
+    exit 1
+}
+$packageName = [string] $nameProperty.Value
+
+if (-not (Test-Path -LiteralPath $AvatarPath)) {
+    [Console]::Error.WriteLine("Avatar project path not found: $AvatarPath")
     exit 1
 }
 
-if (-not (Test-Path $AvatarPath)) {
-    Write-Error "Avatar project path not found: $AvatarPath"
+$avatarFull = (Resolve-Path -LiteralPath $AvatarPath).Path
+$packagesDirectory = Join-Path -Path $avatarFull -ChildPath 'Packages'
+if (-not (Test-Path -LiteralPath $packagesDirectory)) {
+    [Console]::Error.WriteLine("No Packages/ directory under $avatarFull -- not a Unity project root?")
     exit 1
 }
 
-$avatarFull = (Resolve-Path $AvatarPath).Path
-$packagesDir = Join-Path $avatarFull 'Packages'
-if (-not (Test-Path $packagesDir)) {
-    Write-Error "No Packages/ directory under $avatarFull -- not a Unity project root?"
-    exit 1
-}
-
-$destination = Join-Path $packagesDir $packageName
-
-# Foot-gun guard: only write into Packages\dev.whyknot.* so a malformed
-# package.json or argument can't wipe an unrelated directory.
+$destination = Join-Path -Path $packagesDirectory -ChildPath $packageName
 if ($destination -notmatch '\\Packages\\dev\.whyknot\.[\w\-]+\\?$') {
-    Write-Error "Destination '$destination' is not under Packages\dev.whyknot.*. Refusing to deploy."
+    [Console]::Error.WriteLine("Destination '$destination' is not under Packages\dev.whyknot.*. Refusing to deploy.")
     exit 1
 }
 
@@ -54,29 +45,19 @@ Write-Host "Deploying $packageName"
 Write-Host "  from: $repoRoot"
 Write-Host "  to:   $destination"
 
-$excludeDirs = @('.*', 'staging', 'scripts', (Join-Path $repoRoot 'Tests'))
-$excludeFiles = @('.*', 'CONTRIBUTING.md', '*.zip', '*.bak', '*.log', '*.tmp', '*.out', '*.exit')
+$robocopyArguments = @(
+    $repoRoot, $destination, '/MIR', '/NFL', '/NDL', '/NJH', '/R:1', '/W:1',
+    '/XD', '.*', 'staging', 'scripts', (Join-Path -Path $repoRoot -ChildPath 'Tests'),
+    '/XF', '.*', 'CONTRIBUTING.md', '*.zip', '*.bak', '*.log', '*.tmp', '*.out', '*.exit'
+)
 
-$robocopyArgs = @($repoRoot, $destination, '/MIR', '/NFL', '/NDL', '/NJH', '/R:1', '/W:1')
-$robocopyArgs += '/XD'
-$robocopyArgs += $excludeDirs
-$robocopyArgs += '/XF'
-$robocopyArgs += $excludeFiles
-
-& robocopy @robocopyArgs | Out-Null
-$rc = $LASTEXITCODE
-
-# robocopy exit semantics: 0-7 = success (various combinations of copied /
-# skipped / mismatched), 8+ = real failure.
-if ($rc -ge 8) {
-    Write-Error "robocopy failed with exit code $rc"
-    exit $rc
+$null = & robocopy @robocopyArguments
+if ($LASTEXITCODE -ge 8) {
+    [Console]::Error.WriteLine("robocopy failed with exit code $LASTEXITCODE")
+    exit 1
 }
+$robocopyExitCode = $LASTEXITCODE
 
-$copiedFiles = Get-ChildItem -Path $destination -Recurse -File -ErrorAction SilentlyContinue
-if ($copiedFiles) {
-    $count = @($copiedFiles).Count
-} else {
-    $count = 0
-}
-Write-Host ("Deployed {0} file(s) (robocopy exit {1})." -f $count, $rc)
+$count = @(Get-ChildItem -LiteralPath $destination -Recurse -File).Count
+Write-Host ('Deployed {0} file(s) (robocopy exit {1}).' -f $count, $robocopyExitCode)
+exit 0

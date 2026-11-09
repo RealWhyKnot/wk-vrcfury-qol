@@ -1,13 +1,17 @@
+#nullable enable
+
 using System.Collections.Generic;
 using NUnit.Framework;
 using UmeVrcfQol.Tools;
 
-namespace WhyKnot.VrcfQol.Tests {
-
-    public class AutoGlobalParameterToolTests {
-
-        private static ToggleInfo Info(string id, string menu, string cur = "", bool optedOut = false) {
-            return new ToggleInfo {
+namespace WhyKnot.VrcfQol.Tests
+{
+    public sealed class AutoGlobalParameterToolTests
+    {
+        private static ToggleInfo Info(string id, string menu, string cur = "", bool optedOut = false)
+        {
+            return new ToggleInfo
+            {
                 GlobalObjectId = id,
                 MenuPath = menu,
                 CurrentGlobalParam = cur,
@@ -16,14 +20,15 @@ namespace WhyKnot.VrcfQol.Tests {
         }
 
         [Test]
-        public void NoCollisions_AssignsMenuPathToEach() {
+        public void NoCollisionsAssignsMenuPathToEach()
+        {
             var input = new List<ToggleInfo> {
                 Info("a", "Hat"),
                 Info("b", "Glasses"),
                 Info("c", "Backpack"),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hat", result["a"]);
             Assert.AreEqual("Glasses", result["b"]);
@@ -32,28 +37,29 @@ namespace WhyKnot.VrcfQol.Tests {
         }
 
         [Test]
-        public void TwoColliding_FirstKeepsName_SecondGetsTwo() {
+        public void TwoCollidingFirstKeepsNameSecondGetsTwo()
+        {
             var input = new List<ToggleInfo> {
                 Info("a", "Hat"),
                 Info("b", "Hat"),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
-            // GlobalObjectId order: "a" < "b" lexically, so "a" keeps the bare name.
             Assert.AreEqual("Hat", result["a"]);
             Assert.AreEqual("Hat 2", result["b"]);
         }
 
         [Test]
-        public void ThreeColliding_GetSequentialSuffixes() {
+        public void ThreeCollidingGetSequentialSuffixes()
+        {
             var input = new List<ToggleInfo> {
                 Info("a", "Hat"),
                 Info("b", "Hat"),
                 Info("c", "Hat"),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hat", result["a"]);
             Assert.AreEqual("Hat 2", result["b"]);
@@ -61,14 +67,15 @@ namespace WhyKnot.VrcfQol.Tests {
         }
 
         [Test]
-        public void EmptyMenuPath_NotAssigned() {
+        public void EmptyMenuPathNotAssigned()
+        {
             var input = new List<ToggleInfo> {
                 Info("a", ""),
                 Info("b", "   "),
                 Info("c", "Hat"),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.IsFalse(result.ContainsKey("a"));
             Assert.IsFalse(result.ContainsKey("b"));
@@ -77,39 +84,38 @@ namespace WhyKnot.VrcfQol.Tests {
         }
 
         [Test]
-        public void OptedOutHoldsBareName_NonOptedOutGetsSuffix() {
+        public void OptedOutHoldsBareNameNonOptedOutGetsSuffix()
+        {
             var input = new List<ToggleInfo> {
                 Info("a", "Hat", cur: "Hat", optedOut: true),
                 Info("b", "Hat"),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
-            // Opted-out toggle holds 'Hat' (no assignment in result map).
             Assert.IsFalse(result.ContainsKey("a"));
             Assert.AreEqual("Hat 2", result["b"]);
         }
 
         [Test]
-        public void OptedOutHoldsSuffixedName_NonOptedOutRoutesAround() {
+        public void OptedOutHoldsSuffixedNameNonOptedOutRoutesAround()
+        {
             var input = new List<ToggleInfo> {
                 Info("a", "Foo", cur: "Foo 2", optedOut: true),
                 Info("b", "Foo"),
                 Info("c", "Foo"),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
-            // 'Foo 2' is taken by the opted-out toggle.
-            // b (first by id order) gets 'Foo'.
-            // c looks for the next free: 'Foo 2' taken, 'Foo 3' free.
             Assert.IsFalse(result.ContainsKey("a"));
             Assert.AreEqual("Foo", result["b"]);
             Assert.AreEqual("Foo 3", result["c"]);
         }
 
         [Test]
-        public void StableOrder_InputPermutationDoesNotChangeResult() {
+        public void StableOrderInputPermutationDoesNotChangeResult()
+        {
             var forward = new List<ToggleInfo> {
                 Info("a", "Hat"),
                 Info("b", "Hat"),
@@ -121,8 +127,8 @@ namespace WhyKnot.VrcfQol.Tests {
                 Info("a", "Hat"),
             };
 
-            var r1 = AutoGlobalParameterTool.ComputeAssignments(forward);
-            var r2 = AutoGlobalParameterTool.ComputeAssignments(reversed);
+            IReadOnlyDictionary<string, string> r1 = AutoGlobalParameterTool.ComputeAssignments(forward);
+            IReadOnlyDictionary<string, string> r2 = AutoGlobalParameterTool.ComputeAssignments(reversed);
 
             Assert.AreEqual(r1["a"], r2["a"]);
             Assert.AreEqual(r1["b"], r2["b"]);
@@ -130,22 +136,21 @@ namespace WhyKnot.VrcfQol.Tests {
         }
 
         [Test]
-        public void BothCollidingOptedOut_NoAssignmentsProduced() {
+        public void BothCollidingOptedOutNoAssignmentsProduced()
+        {
             var input = new List<ToggleInfo> {
                 Info("a", "Hat", cur: "Hat", optedOut: true),
                 Info("b", "Hat", cur: "Hat", optedOut: true),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
-            // Both opted-out; the tool produces no assignments. The collision
-            // persists -- which is the correct outcome (user explicitly chose
-            // to disable auto-fix on both).
             Assert.AreEqual(0, result.Count);
         }
 
-        private static ToggleInfo Set(string id, string menu, string cur, bool byTool = false, bool held = false) {
-            var info = Info(id, menu, cur);
+        private static ToggleInfo Set(string id, string menu, string cur, bool byTool = false, bool held = false)
+        {
+            ToggleInfo info = Info(id, menu, cur);
             info.UsesGlobalParam = true;
             info.AssignedByTool = byTool;
             info.HeldPreviously = held;
@@ -153,88 +158,96 @@ namespace WhyKnot.VrcfQol.Tests {
         }
 
         [Test]
-        public void ExistingCustomGlobalParam_IsKept() {
+        public void ExistingCustomGlobalParamIsKept()
+        {
             var input = new List<ToggleInfo> { Set("a", "Hat", "MyHatParam") };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("MyHatParam", result["a"]);
         }
 
         [Test]
-        public void ExistingGlobalParam_SurvivesMenuRename() {
+        public void ExistingGlobalParamSurvivesMenuRename()
+        {
             var input = new List<ToggleInfo> { Set("a", "Hats", "Hat", held: true) };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hat", result["a"]);
         }
 
         [Test]
-        public void ValueWrittenByToolThisSession_FollowsMenuPath() {
+        public void ValueWrittenByToolThisSessionFollowsMenuPath()
+        {
             var input = new List<ToggleInfo> { Set("a", "Hats", "Hat", byTool: true, held: true) };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hats", result["a"]);
         }
 
         [Test]
-        public void GlobalParamNotInUse_AdoptsMenuPath() {
+        public void GlobalParamNotInUseAdoptsMenuPath()
+        {
             var input = new List<ToggleInfo> { Info("a", "Hat", cur: "Old") };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hat", result["a"]);
         }
 
         [Test]
-        public void Duplicate_OriginalKeepsName_CopyGetsSuffix() {
+        public void DuplicateOriginalKeepsNameCopyGetsSuffix()
+        {
             var input = new List<ToggleInfo> {
                 Set("a", "Hat", "Hat"),
                 Set("b", "Hat", "Hat", held: true),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hat", result["b"]);
             Assert.AreEqual("Hat 2", result["a"]);
         }
 
         [Test]
-        public void ToolOwnedDuplicate_OriginalKeepsName_CopyGetsSuffix() {
+        public void ToolOwnedDuplicateOriginalKeepsNameCopyGetsSuffix()
+        {
             var input = new List<ToggleInfo> {
                 Set("a", "Hat", "Hat"),
                 Set("b", "Hat", "Hat", byTool: true, held: true),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hat", result["b"]);
             Assert.AreEqual("Hat 2", result["a"]);
         }
 
         [Test]
-        public void CustomNameCollision_LoserFallsBackToMenuPath() {
+        public void CustomNameCollisionLoserFallsBackToMenuPath()
+        {
             var input = new List<ToggleInfo> {
                 Set("a", "Bag", "Shared"),
                 Set("b", "Hat", "Shared", held: true),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Shared", result["b"]);
             Assert.AreEqual("Bag", result["a"]);
         }
 
         [Test]
-        public void ExistingGlobalParam_ReservesNameAgainstNewToggle() {
+        public void ExistingGlobalParamReservesNameAgainstNewToggle()
+        {
             var input = new List<ToggleInfo> {
                 Set("b", "Bag", "Hat"),
                 Info("a", "Hat"),
             };
 
-            var result = AutoGlobalParameterTool.ComputeAssignments(input);
+            IReadOnlyDictionary<string, string> result = AutoGlobalParameterTool.ComputeAssignments(input);
 
             Assert.AreEqual("Hat", result["b"]);
             Assert.AreEqual("Hat 2", result["a"]);

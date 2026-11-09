@@ -1,124 +1,157 @@
+#nullable enable
+
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using NUnit.Framework;
 using UmeVrcfQol.Tools;
 using UnityEngine;
 
-namespace WhyKnot.VrcfQol.Tests {
-
-    public class MigrateIntoFlipbookToolTests {
-
-        [Serializable]
-        private class FakeState {
-            [SerializeReference] public List<object> actions = new List<object>();
-        }
-
-        [Serializable]
-        private class FakeIcon {
-            public string id;
-            public Texture2D objRef;
-        }
-
-        [Serializable]
-        private class FakeToggle {
-            public string name;
-            public FakeState state = new FakeState();
-            public bool saved;
-            public bool simpleOutTransition = true;
-            public float defaultSliderValue;
-            public string globalParam;
-            public FakeIcon icon;
-            public FakeState transitionStateIn = new FakeState();
-            [NonSerialized] public bool addMenuItem = true;
-            [Obsolete] public bool includeInRest;
-            [SerializeField] private string exclusiveTag;
-            private int scratch;
-
-            public void SetPrivate(string tag, int value) {
-                exclusiveTag = tag;
-                scratch = value;
-            }
-        }
-
-        [Serializable]
-        private class FakeAction {
-            public string clip;
-        }
+namespace WhyKnot.VrcfQol.Tests
+{
+    public sealed class MigrateIntoFlipbookToolTests
+    {
+        private static readonly string[] ChangedSettingNames =
+        {
+            "Saved", "SimpleOutTransition", "DefaultSliderValue", "GlobalParam", "Icon", "TransitionStateIn", "_exclusiveTag",
+        };
 
         [Test]
-        public void DefaultToggle_ReportsNothing() {
-            var toggle = new FakeToggle { name = "Hat" };
-            toggle.state.actions.Add(new FakeAction { clip = "a" });
+        public void DefaultToggleReportsNothing()
+        {
+            var toggle = new FakeToggle { Name = "Hat" };
+            toggle.State.Actions.Add(new FakeAction { Clip = "a" });
 
-            var changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "name", "state");
+            List<string> changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "Name", "State");
 
             CollectionAssert.IsEmpty(changed);
         }
 
         [Test]
-        public void ChangedSettings_AreReported() {
-            var toggle = new FakeToggle {
-                saved = true,
-                simpleOutTransition = false,
-                defaultSliderValue = 0.5f,
-                globalParam = "Hat",
-                icon = new FakeIcon { id = "abc" },
+        public void ChangedSettingsAreReported()
+        {
+            var toggle = new FakeToggle
+            {
+                Saved = true,
+                SimpleOutTransition = false,
+                DefaultSliderValue = 0.5f,
+                GlobalParam = "Hat",
+                Icon = new FakeIcon { Id = "abc" },
             };
-            toggle.transitionStateIn.actions.Add(new FakeAction { clip = "in" });
+            toggle.TransitionStateIn?.Actions.Add(new FakeAction { Clip = "in" });
             toggle.SetPrivate("Hats", 3);
 
-            var changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "name", "state");
+            List<string> changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "Name", "State");
 
-            CollectionAssert.AreEquivalent(
-                new[] { "saved", "simpleOutTransition", "defaultSliderValue", "globalParam", "icon", "transitionStateIn", "exclusiveTag" },
-                changed);
+            Assert.IsTrue(toggle.HasPrivate("Hats", 3));
+            CollectionAssert.AreEquivalent(ChangedSettingNames, changed);
         }
 
         [Test]
-        public void NullAndEmptyValues_CountAsDefault() {
-            var toggle = new FakeToggle { globalParam = "", icon = new FakeIcon(), transitionStateIn = null };
+        public void NullAndEmptyValuesCountAsDefault()
+        {
+            var toggle = new FakeToggle
+            {
+                GlobalParam = "",
+                Icon = new FakeIcon { ObjRef = null },
+                TransitionStateIn = null,
+            };
 
-            var changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "name", "state");
+            List<string> changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "Name", "State");
 
             CollectionAssert.IsEmpty(changed);
         }
 
         [Test]
-        public void NonSerializedAndObsoleteFields_AreIgnored() {
-            var toggle = new FakeToggle { addMenuItem = false };
-#pragma warning disable 612
-            toggle.includeInRest = true;
-#pragma warning restore 612
+        public void NonSerializedAndObsoleteFieldsAreIgnored()
+        {
+            var toggle = new FakeToggle { AddMenuItem = false };
+            FieldInfo? obsolete = typeof(FakeToggle).GetField("IncludeInRest");
+            if (obsolete == null)
+            {
+                Assert.Fail("FakeToggle.IncludeInRest is missing.");
+                return;
+            }
 
-            var changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "name", "state");
+            obsolete.SetValue(toggle, value: false);
+
+            List<string> changed = MigrateIntoFlipbookTool.ChangedSerializedFields(toggle, new FakeToggle(), "Name", "State");
 
             CollectionAssert.IsEmpty(changed);
         }
 
-        private class FakeFlipbook {
-            public List<object> pages = new List<object>();
-        }
-
-        private class FakeHolder {
-            public FakeState state = new FakeState();
-        }
-
-        private class FakeRoot {
-            public FakeHolder content = new FakeHolder();
-        }
-
         [Test]
-        public void Walk_ResolvesTheFlipbookAtThePagePathPrefix() {
+        public void WalkResolvesTheFlipbookAtThePagePathPrefix()
+        {
             var root = new FakeRoot();
             var first = new FakeFlipbook();
             var second = new FakeFlipbook();
-            root.content.state.actions.Add(first);
-            root.content.state.actions.Add(new FakeAction());
-            root.content.state.actions.Add(second);
+            root.Content.State.Actions.Add(first);
+            root.Content.State.Actions.Add(new FakeAction());
+            root.Content.State.Actions.Add(second);
 
-            var resolved = DuplicateActionTool.Walk(root, "content.state.actions.Array.data[2]");
+            object? resolved = DuplicateActionTool.Walk(root, "Content.State.Actions.Array.data[2]");
 
             Assert.AreSame(second, resolved);
+            Assert.AreEqual(0, second.Pages.Count);
+        }
+
+        private sealed class FakeState
+        {
+            [SerializeReference] public List<object> Actions = new();
+        }
+
+        private sealed class FakeIcon
+        {
+            public string? Id;
+            public Texture2D? ObjRef;
+        }
+
+        private sealed class FakeToggle
+        {
+            public string? Name;
+            public FakeState State = new();
+            public bool Saved;
+            public bool SimpleOutTransition = true;
+            public float DefaultSliderValue;
+            public string? GlobalParam;
+            public FakeIcon? Icon;
+            public FakeState? TransitionStateIn = new();
+            [NonSerialized] public bool AddMenuItem = true;
+            [Obsolete("Mirrors a field VRCFury no longer reads.")] public bool IncludeInRest = true;
+            [SerializeField] private string? _exclusiveTag;
+            private int _scratch;
+
+            public void SetPrivate(string tag, int value)
+            {
+                _exclusiveTag = tag;
+                _scratch = value;
+            }
+
+            public bool HasPrivate(string tag, int value)
+            {
+                return string.Equals(_exclusiveTag, tag, StringComparison.Ordinal) && _scratch == value;
+            }
+        }
+
+        private sealed class FakeAction
+        {
+            public string? Clip;
+        }
+
+        private sealed class FakeFlipbook
+        {
+            public List<object> Pages = new();
+        }
+
+        private sealed class FakeHolder
+        {
+            public FakeState State = new();
+        }
+
+        private sealed class FakeRoot
+        {
+            public FakeHolder Content = new();
         }
     }
 }

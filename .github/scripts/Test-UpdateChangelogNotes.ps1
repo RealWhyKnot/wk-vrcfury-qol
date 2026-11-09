@@ -3,18 +3,22 @@
 param()
 
 $ErrorActionPreference = 'Stop'
-
-$script = Join-Path $PSScriptRoot 'Update-Changelog.ps1'
-$repo = Join-Path ([System.IO.Path]::GetTempPath()) ("changelog-notes-test-" + [System.Guid]::NewGuid().ToString('N'))
-$encoding = [System.Text.UTF8Encoding]::new($false)
+Set-StrictMode -Version Latest
 
 function Write-Utf8 {
-    param([string]$Path, [string]$Content)
-    [System.IO.File]::WriteAllText($Path, $Content, $encoding)
+    [CmdletBinding()]
+    [OutputType([void])]
+    param([string] $Path, [string] $Content)
+
+    [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
 }
 
+$script = Join-Path -Path $PSScriptRoot -ChildPath 'Update-Changelog.ps1'
+$repo = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath (
+    'changelog-notes-test-' + [System.Guid]::NewGuid().ToString('N'))
+
 try {
-    New-Item -ItemType Directory -Path $repo -Force | Out-Null
+    $null = New-Item -ItemType Directory -Path $repo -Force
 
     $changelog = @'
 # Changelog
@@ -45,21 +49,23 @@ _No notable changes since the last release._
 - Old stable
 '@
 
-    Write-Utf8 -Path (Join-Path $repo 'CHANGELOG.md') -Content $changelog
+    Write-Utf8 -Path (Join-Path -Path $repo -ChildPath 'CHANGELOG.md') -Content $changelog
 
     $stable = (& $script -Mode Notes -ForVersion -Version 'v1.1.0' -RepoRoot $repo) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "Stable notes exited with $LASTEXITCODE." }
     if ($stable -notmatch 'Stable patch') { throw 'Stable notes did not include stable section.' }
     if ($stable -notmatch '## v1\.1\.0-beta') { throw 'Stable notes did not include beta heading.' }
     if ($stable -notmatch 'Beta patch') { throw 'Stable notes did not include beta section.' }
     if ($stable -match 'Old stable') { throw 'Stable notes included prior stable section.' }
 
     $beta = (& $script -Mode Notes -ForVersion -Version 'v1.1.0-beta' -RepoRoot $repo) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "Beta notes exited with $LASTEXITCODE." }
     if ($beta -notmatch 'Beta patch') { throw 'Beta notes did not include beta section.' }
     if ($beta -match 'Stable patch') { throw 'Beta notes included later stable section.' }
     if ($beta -match 'Old stable') { throw 'Beta notes included prior stable section.' }
 
     Write-Host 'Update-Changelog Notes tests passed.'
-}
-finally {
+} finally {
     Remove-Item -LiteralPath $repo -Recurse -Force
 }
+exit 0

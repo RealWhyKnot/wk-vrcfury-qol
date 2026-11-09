@@ -1,44 +1,66 @@
-// VrcfQol.CloneClipboard.cs
+#nullable enable
 
 using System;
 using System.Collections;
 using UnityEngine;
 
-namespace UmeVrcfQol {
+namespace UmeVrcfQol
+{
+    internal static partial class VrcfQol
+    {
+        internal static object DeepClonePage(object sourcePage)
+        {
+            ReflectionCache r = Reflection;
+            if (!r.TryEnsure(out string? error))
+            {
+                throw new InvalidOperationException(error);
+            }
 
-    internal static partial class VrcfQol {
-
-        // =========================== Clone / clipboard ========================
-
-        internal static object DeepClonePage(object sourcePage) {
-            var r = Reflection;
-            var srcState = r.PageStateField.GetValue(sourcePage);
-            var srcActions = r.StateActionsField.GetValue(srcState) as IList;
-
-            var listType = r.StateActionsField.FieldType;
+            object srcState = r.PageStateField.GetValue(sourcePage);
+            Type listType = r.StateActionsField.FieldType;
             var newActions = (IList)Activator.CreateInstance(listType);
-            if (srcActions != null) {
-                foreach (var action in srcActions) {
-                    if (action == null) { newActions.Add(null); continue; }
-                    var json = JsonUtility.ToJson(action);
-                    var clone = JsonUtility.FromJson(json, action.GetType());
+            if (r.StateActionsField.GetValue(srcState) is IList srcActions)
+            {
+                foreach (object? action in srcActions)
+                {
+                    if (action == null)
+                    {
+                        newActions.Add(value: null);
+                        continue;
+                    }
+
+                    string json = JsonUtility.ToJson(action);
+                    object clone = JsonUtility.FromJson(json, action.GetType());
                     newActions.Add(clone);
                 }
             }
 
-            var newState = Activator.CreateInstance(r.StateType);
+            object newState = Activator.CreateInstance(r.StateType);
             r.StateActionsField.SetValue(newState, newActions);
 
-            var newPage = Activator.CreateInstance(r.FlipbookPageType);
+            object newPage = Activator.CreateInstance(r.FlipbookPageType);
             r.PageStateField.SetValue(newPage, newState);
             return newPage;
         }
 
-        internal static object FindFlipbookAction(IList actions) {
-            if (actions == null) return null;
-            foreach (var a in actions) {
-                if (a == null) continue;
-                if (a.GetType() == Reflection.FlipbookBuilderActionType) return a;
+        internal static object? FindFlipbookAction(IList? actions)
+        {
+            if (actions == null)
+            {
+                return null;
+            }
+
+            foreach (object? a in actions)
+            {
+                if (a == null)
+                {
+                    continue;
+                }
+
+                if (a.GetType() == Reflection.FlipbookBuilderActionType)
+                {
+                    return a;
+                }
             }
             return null;
         }

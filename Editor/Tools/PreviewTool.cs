@@ -1,23 +1,18 @@
-// PreviewTool.cs
-//
-// Non-destructive scene preview for VRCFury toggles and flipbook pages.
-// Preview never mutates the original avatar. It creates a temporary clone,
-// applies the selected VRCFury state actions to that clone, hides the source
-// avatar while previewing, then restores it when previewing stops.
+#nullable enable
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace UmeVrcfQol.Tools {
-
+namespace UmeVrcfQol.Tools
+{
     [InitializeOnLoad]
-    internal static partial class PreviewTool {
+    internal static partial class PreviewTool
+    {
         private const BindingFlags AnyInstance =
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         private const string PreviewPrefix = "[VRCF QoL Preview]";
@@ -27,9 +22,10 @@ namespace UmeVrcfQol.Tools {
         private const string PrefsSourceGlobalId = "WhyKnot.VrcfQol.Preview.SourceGlobalId";
         private const string PrefsSourceWasHidden = "WhyKnot.VrcfQol.Preview.SourceWasHidden";
 
-        private static PreviewSession _active;
+        private static PreviewSession? ActiveSession;
 
-        static PreviewTool() {
+        static PreviewTool()
+        {
             RestoreAbandonedPreviewState();
             CleanupAbandonedPreviewClones();
             EditorApplication.delayCall += RestoreAbandonedPreviewState;
@@ -67,95 +63,116 @@ namespace UmeVrcfQol.Tools {
             );
         }
 
-        internal static void ShowTogglePreview(Component component) {
-            if (!TryResolveToggleFromComponent(component, out var ctx, out var error)) {
+        internal static void ShowTogglePreview(Component component)
+        {
+            if (!TryResolveToggleFromComponent(component, out VrcfQol.ToggleContext ctx, out string? error))
+            {
                 EditorUtility.DisplayDialog("Preview", error, "OK");
                 return;
             }
             ShowTogglePreview(ctx);
         }
 
-        internal static void ToggleTogglePreview(Component component) {
-            if (IsPreviewingComponent(component)) {
+        internal static void ToggleTogglePreview(Component component)
+        {
+            if (IsPreviewingComponent(component))
+            {
                 StopActivePreview();
                 return;
             }
             ShowTogglePreview(component);
         }
 
-        internal static void StopActivePreview() {
+        internal static void StopActivePreview()
+        {
             StopPreview("stopped");
         }
 
         [MenuItem("Tools/WhyKnot/wk-vrcfury-qol/Stop previewing", priority = 36)]
-        private static void StopPreviewFromMenu() {
+        private static void StopPreviewFromMenu()
+        {
             StopActivePreview();
         }
 
         [MenuItem("Tools/WhyKnot/wk-vrcfury-qol/Stop previewing", true)]
-        private static bool StopPreviewFromMenuValidate() {
-            return _active != null && _active.CloneRoot != null;
+        private static bool StopPreviewFromMenuValidate()
+        {
+            return ActiveSession != null && ActiveSession.CloneRoot != null;
         }
 
-        internal static bool IsPreviewingComponent(Component component) {
-            return _active != null &&
-                _active.CloneRoot != null &&
+        internal static bool IsPreviewingComponent(Component component)
+        {
+            return ActiveSession != null &&
+                ActiveSession.CloneRoot != null &&
                 component != null &&
-                _active.SourceComponent == component;
+                ActiveSession.SourceComponent == component;
         }
 
-        internal static bool IsPreviewingPage(VrcfQol.FlipbookContext ctx) {
-            return IsPreviewing(ctx.vrcfComponent, ctx.pageIndex);
+        internal static bool IsPreviewingPage(VrcfQol.FlipbookContext ctx)
+        {
+            return IsPreviewing(ctx.VrcfComponent, ctx.PageIndex);
         }
 
-        private static void ShowTogglePreview(VrcfQol.ToggleContext ctx) {
-            if (ctx.flipbookAction != null) {
-                var pages = VrcfQol.Reflection.PagesField.GetValue(ctx.flipbookAction) as IList;
-                if (pages == null || pages.Count == 0) {
+        private static void ShowTogglePreview(VrcfQol.ToggleContext ctx)
+        {
+            if (ctx.FlipbookAction != null)
+            {
+                VrcfQol.ReflectionCache r = VrcfQol.Reflection;
+                if (!r.TryEnsure(out _) || r.PagesField.GetValue(ctx.FlipbookAction) is not IList pages || pages.Count == 0)
+                {
                     EditorUtility.DisplayDialog("Preview", "This flipbook has no pages to preview.", "OK");
                     return;
                 }
-                ShowPageMenu(ctx.vrcfComponent, ctx.toggleName, pages);
+                ShowPageMenu(ctx.VrcfComponent, ctx.ToggleName, pages);
                 return;
             }
 
-            StartPreview(ctx.vrcfComponent, ctx.actions, PreviewName("Toggle", ctx.toggleName), "toggle", -1);
+            StartPreview(ctx.VrcfComponent, ctx.Actions, PreviewName("Toggle", ctx.ToggleName), "toggle", -1);
         }
 
-        private static void ShowFlipbookPagePicker(VrcfQol.FlipbookContext ctx) {
-            if (ctx.pages == null || ctx.pages.Count == 0) {
+        private static void ShowFlipbookPagePicker(VrcfQol.FlipbookContext ctx)
+        {
+            if (ctx.Pages == null || ctx.Pages.Count == 0)
+            {
                 EditorUtility.DisplayDialog("Preview", "This flipbook has no pages to preview.", "OK");
                 return;
             }
-            ShowPageMenu(ctx.vrcfComponent, ctx.toggleName, ctx.pages);
+            ShowPageMenu(ctx.VrcfComponent, ctx.ToggleName, ctx.Pages);
         }
 
-        private static void ShowPagePreview(VrcfQol.FlipbookContext ctx) {
-            if (ctx.pages == null || ctx.pageIndex < 0 || ctx.pageIndex >= ctx.pages.Count) {
-                EditorUtility.DisplayDialog("Preview", $"Page #{ctx.pageIndex + 1} was not found.", "OK");
+        private static void ShowPagePreview(VrcfQol.FlipbookContext ctx)
+        {
+            if (ctx.Pages == null || ctx.PageIndex < 0 || ctx.PageIndex >= ctx.Pages.Count)
+            {
+                EditorUtility.DisplayDialog("Preview", $"Page #{ctx.PageIndex + 1} was not found.", "OK");
                 return;
             }
             StartPreview(
-                ctx.vrcfComponent,
-                GetActionsFromPage(ctx.pages[ctx.pageIndex]),
-                $"{PreviewName("Flipbook", ctx.toggleName)} - Page #{ctx.pageIndex + 1}",
-                $"page #{ctx.pageIndex + 1}",
-                ctx.pageIndex);
+                ctx.VrcfComponent,
+                GetActionsFromPage(ctx.Pages[ctx.PageIndex]),
+                $"{PreviewName("Flipbook", ctx.ToggleName)} - Page #{ctx.PageIndex + 1}",
+                $"page #{ctx.PageIndex + 1}",
+                ctx.PageIndex);
         }
 
-        private static void TogglePagePreview(VrcfQol.FlipbookContext ctx) {
-            if (IsPreviewingPage(ctx)) {
+        private static void TogglePagePreview(VrcfQol.FlipbookContext ctx)
+        {
+            if (IsPreviewingPage(ctx))
+            {
                 StopActivePreview();
                 return;
             }
             ShowPagePreview(ctx);
         }
 
-        private static void ShowPageMenu(Component component, string toggleName, IList pages) {
+        private static void ShowPageMenu(Component component, string toggleName, IList pages)
+        {
             var menu = new GenericMenu();
-            for (int i = 0; i < pages.Count; i++) {
+            for (int i = 0; i < pages.Count; i++)
+            {
                 int pageIndex = i;
-                menu.AddItem(new GUIContent($"Page {i + 1}"), false, () => {
+                menu.AddItem(new GUIContent($"Page {i + 1}"), on: false, () =>
+                {
                     StartPreview(
                         component,
                         GetActionsFromPage(pages[pageIndex]),
@@ -167,69 +184,122 @@ namespace UmeVrcfQol.Tools {
             menu.ShowAsContext();
         }
 
-        private static void StartPreview(Component sourceComponent, IList actions, string title, string shortLabel, int pageIndex) {
-            if (sourceComponent == null) {
+        private static void StartPreview(Component sourceComponent, IList? actions, string title, string shortLabel, int pageIndex)
+        {
+            if (sourceComponent == null)
+            {
                 EditorUtility.DisplayDialog("Preview", "Could not resolve the VRCFury component.", "OK");
                 return;
             }
-            if (actions == null || actions.Count == 0) {
+            if (actions == null || actions.Count == 0)
+            {
                 EditorUtility.DisplayDialog("Preview", "There are no actions on this toggle/page to preview.", "OK");
                 return;
             }
 
             StopPreview("replaced");
 
-            var sourceRoot = FindAvatarRoot(sourceComponent);
-            if (sourceRoot == null) {
+            GameObject? sourceRoot = FindAvatarRoot(sourceComponent);
+            if (sourceRoot == null)
+            {
                 EditorUtility.DisplayDialog("Preview", "Could not find the avatar root to duplicate.", "OK");
                 return;
             }
 
-            GameObject clone = null;
-            try {
-                clone = Object.Instantiate(sourceRoot, sourceRoot.transform.parent);
-                clone.name = $"{PreviewPrefix} {sourceRoot.name}";
-                clone.transform.SetSiblingIndex(sourceRoot.transform.GetSiblingIndex() + 1);
-                MarkHierarchyTemporary(clone);
-                AlignCloneWithSource(sourceRoot, clone);
-                StripPreviewComponents(clone);
-
-                var session = new PreviewSession {
-                    SourceComponent = sourceComponent,
-                    SourceRoot = sourceRoot,
-                    CloneRoot = clone,
-                    Title = title,
-                    ShortLabel = shortLabel,
-                    PageIndex = pageIndex,
-                    SourceWasHidden = IsSceneHidden(sourceRoot),
-                    PreviousSelection = Selection.objects,
-                };
-                _active = session;
-                RememberPreview(session);
-
-                var applied = 0;
-                foreach (var action in actions) {
-                    if (action == null) continue;
-                    if (ApplyActionToClone(action, session)) applied++;
-                }
-
-                if (applied == 0) {
-                    StopPreview("empty");
-                    EditorUtility.DisplayDialog("Preview",
-                        "None of the actions on this toggle/page could be applied to a temporary preview copy.",
-                        "OK");
+            GameObject? clone = null;
+            bool settled = false;
+            try
+            {
+                clone = CreatePreviewClone(sourceRoot);
+                PreviewSession session = BeginSession(sourceComponent, sourceRoot, clone, title, shortLabel, pageIndex);
+                int applied = ApplyActionsToClone(actions, session);
+                settled = true;
+                if (applied == 0)
+                {
+                    ReportEmptyPreview();
                     return;
                 }
 
                 HideSourceAvatar(sourceRoot);
                 VrcfQolLogger.Instance.Info($"Started preview '{title}' on temporary clone '{clone.name}' ({applied} action(s) applied).");
-            } catch (Exception ex) {
+            }
+            catch (Exception ex) when (VrcfQol.IsToolFailure(ex))
+            {
                 VrcfQolLogger.Instance.Exception(ex);
-                if (clone != null) Object.DestroyImmediate(clone);
-                _active = null;
-                ForgetPreview();
+                AbandonPreview(clone);
+                settled = true;
                 EditorUtility.DisplayDialog("Preview", "Preview failed. See Console.\n\n" + ex.Message, "OK");
             }
+            finally
+            {
+                if (!settled)
+                {
+                    AbandonPreview(clone);
+                }
+            }
+        }
+
+        private static PreviewSession BeginSession(
+            Component sourceComponent,
+            GameObject sourceRoot,
+            GameObject clone,
+            string title,
+            string shortLabel,
+            int pageIndex)
+        {
+            var session = new PreviewSession(sourceComponent, sourceRoot, clone, title, shortLabel)
+            {
+                PageIndex = pageIndex,
+                SourceWasHidden = IsSceneHidden(sourceRoot),
+                PreviousSelection = Selection.objects,
+            };
+            ActiveSession = session;
+            RememberPreview(session);
+            return session;
+        }
+
+        private static void ReportEmptyPreview()
+        {
+            StopPreview("empty");
+            EditorUtility.DisplayDialog("Preview",
+                "None of the actions on this toggle/page could be applied to a temporary preview copy.",
+                "OK");
+        }
+
+        private static GameObject CreatePreviewClone(GameObject sourceRoot)
+        {
+            GameObject clone = Object.Instantiate(sourceRoot, sourceRoot.transform.parent);
+            clone.name = $"{PreviewPrefix} {sourceRoot.name}";
+            clone.transform.SetSiblingIndex(sourceRoot.transform.GetSiblingIndex() + 1);
+            MarkHierarchyTemporary(clone);
+            AlignCloneWithSource(sourceRoot, clone);
+            StripPreviewComponents(clone);
+            return clone;
+        }
+
+        private static int ApplyActionsToClone(IList actions, PreviewSession session)
+        {
+            int applied = 0;
+            foreach (object? action in actions)
+            {
+                if (action != null && ApplyActionToClone(action, session))
+                {
+                    applied++;
+                }
+            }
+
+            return applied;
+        }
+
+        private static void AbandonPreview(GameObject? clone)
+        {
+            if (clone != null)
+            {
+                Object.DestroyImmediate(clone);
+            }
+
+            ActiveSession = null;
+            ForgetPreview();
         }
     }
 }

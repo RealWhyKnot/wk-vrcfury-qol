@@ -1,51 +1,20 @@
-// WkLogger.cs
-//
-// Per-package file logger plus optional Unity-console mirror. Each
-// WhyKnot package constructs one of these in its [InitializeOnLoad]
-// static class; the constructor self-registers with WkLoggerRegistry
-// so anywhere in the editor can fetch the right instance by packageId.
-//
-// Output goes to a machine-wide directory under
-// %LocalAppData%/WhyKnot/Logs/<package-id>/ on Windows (and the
-// equivalent SpecialFolder.LocalApplicationData on other platforms).
-// One file per Unity launch named session-<timestamp>.log. The
-// constructor culls older sessions so the directory carries at most
-// MaxSessionsPerPackage files, including the new one -- with three
-// WhyKnot packages and three sessions each, the user keeps a rolling
-// nine log files on their machine regardless of how many Unity projects
-// they switch between.
-//
-// Logging captures: ISO-ish timestamp, level, calling source file +
-// line, calling member, and the message. Exceptions also dump the
-// stack to the file. The console mirror is configurable per level so
-// Debug noise can stay file-only while warnings and errors surface in
-// the Console as well.
-//
-// Lock-protected writes are safe across threads; FileSystemWatcher
-// callbacks and EditorApplication.update both end up in here from
-// EditorHotReload.
+#nullable enable
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Security;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace UmeVrcfQol.Internal.Logging {
-
-    public enum WkLogLevel {
-        Debug,
-        Info,
-        Warning,
-        Error,
-    }
-
-    public sealed class WkLogger {
-
-        /// <summary>How many session log files we keep per package directory.</summary>
+namespace UmeVrcfQol.Internal.Logging
+{
+    public sealed class WkLogger : IDisposable
+    {
         public const int MaxSessionsPerPackage = 3;
 
         private const string RootFolderName = "WhyKnot";
@@ -53,231 +22,300 @@ namespace UmeVrcfQol.Internal.Logging {
         private const string SessionFilePrefix = "session-";
         private const string SessionFileExtension = ".log";
 
-        private readonly string _packageId;
-        private readonly string _displayName;
         private readonly string _packageVersion;
-        private readonly string _logDirectory;
-        private readonly string _logFilePath;
-        private readonly object _writeLock = new object();
-        private readonly StringBuilder _builder = new StringBuilder(256);
+        private readonly object _writeLock = new();
+        private readonly StringBuilder _builder = new(256);
 
-        // Long-lived buffered writer. Opened in the ctor, flushed + closed
-        // on domain reload, editor quit, and play-mode entry; reopened on
-        // edit-mode re-entry. Warning/Error/Exception lines flush
-        // immediately so bug-report-relevant content is always on disk;
-        // Debug/Info are eventually consistent.
-        private StreamWriter _writer;
+        private StreamWriter? _writer;
         private bool _writerOpen;
+        private bool _writeFailureReported;
 
-        public string PackageId => _packageId;
-        public string DisplayName => _displayName;
-        public string LogFilePath => _logFilePath;
-        public string LogDirectory => _logDirectory;
+        public string PackageId { get; }
+        public string DisplayName { get; }
+        public string LogFilePath { get; }
+        public string LogDirectory { get; }
 
-        /// <summary>Mirror Debug-level lines to UnityEngine.Debug.Log. Off by default to keep the console quiet.</summary>
-        public bool MirrorDebugToConsole { get; set; } = false;
+        public bool MirrorDebugToConsole { get; set; }
 
-        /// <summary>Mirror Info-level lines to UnityEngine.Debug.Log. On by default -- matches the previous "[VRCF QoL] ..." bracketed-prefix convention.</summary>
         public bool MirrorInfoToConsole { get; set; } = true;
 
-        /// <summary>Mirror Warning-level lines to UnityEngine.Debug.LogWarning.</summary>
         public bool MirrorWarningToConsole { get; set; } = true;
 
-        /// <summary>Mirror Error-level lines to UnityEngine.Debug.LogError.</summary>
         public bool MirrorErrorToConsole { get; set; } = true;
 
-        /// <summary>Mirror Exception logs to UnityEngine.Debug.LogException so Unity's stack-trace renderer fires.</summary>
         public bool MirrorExceptionToConsole { get; set; } = true;
 
-        public WkLogger(string packageId, string displayName, string packageVersion) {
-            if (string.IsNullOrEmpty(packageId)) throw new ArgumentException("packageId is required", nameof(packageId));
-            if (string.IsNullOrEmpty(displayName)) throw new ArgumentException("displayName is required", nameof(displayName));
-            _packageId = packageId;
-            _displayName = displayName;
-            _packageVersion = packageVersion ?? "(unknown)";
-
-            _logDirectory = ResolveLogDirectory(_packageId);
-            try {
-                Directory.CreateDirectory(_logDirectory);
-                CullOldSessions(_logDirectory, MaxSessionsPerPackage - 1);
-            } catch (Exception ex) {
-                // If we can't even prepare the directory we still want the
-                // registry entry so callers don't blow up; subsequent writes
-                // will be no-ops thanks to the try-catch in WriteLineToFile.
-                UnityEngine.Debug.LogWarning($"[{_displayName}] WkLogger failed to prepare log directory '{_logDirectory}': {ex.Message}");
+        public WkLogger(string packageId, string displayName, string packageVersion)
+        {
+            if (string.IsNullOrEmpty(packageId))
+            {
+                throw new ArgumentException("packageId is required", nameof(packageId));
             }
 
-            _logFilePath = Path.Combine(_logDirectory, BuildSessionFileName(DateTime.Now));
+            if (string.IsNullOrEmpty(displayName))
+            {
+                throw new ArgumentException("displayName is required", nameof(displayName));
+            }
+
+            PackageId = packageId;
+            DisplayName = displayName;
+            _packageVersion = packageVersion ?? "(unknown)";
+
+            LogDirectory = ResolveLogDirectory(PackageId);
+            int cullFailures = 0;
+            try
+            {
+                Directory.CreateDirectory(LogDirectory);
+                cullFailures = CullOldSessions(LogDirectory, MaxSessionsPerPackage - 1);
+            }
+            catch (Exception ex) when (IsFileAccessFailure(ex))
+            {
+                UnityEngine.Debug.LogWarning($"[{DisplayName}] WkLogger failed to prepare log directory '{LogDirectory}': {ex.Message}");
+            }
+
+            LogFilePath = Path.Combine(LogDirectory, BuildSessionFileName(DateTime.Now));
             OpenWriter();
             WriteSessionHeader();
-            Flush();   // header is on-disk immediately so anything reading the path right after construction sees it
+            if (cullFailures > 0)
+            {
+                WriteLineToFile($"Could not delete {cullFailures} old session log(s).");
+            }
+
+            Flush();
             WkLoggerRegistry.Register(this);
             SubscribeLifecycle();
         }
 
-        // ---- buffered writer + lifecycle ----------------------------
+        public void Dispose()
+        {
+            AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+            EditorApplication.quitting -= OnEditorQuitting;
+            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+            FlushAndCloseWriter();
+        }
 
-        private void OpenWriter() {
-            lock (_writeLock) {
-                if (_writerOpen) return;
-                try {
-                    // FileShare.ReadWrite lets other processes (Unity itself,
-                    // a log viewer tailing the file, the test harness reading
-                    // it via File.ReadAllText) open the same file for reading
-                    // while we have the writer open. Without ReadWrite we
-                    // trip Sharing violation on Windows the moment any other
-                    // hand reaches for the file.
-                    var stream = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+        private static bool IsFileAccessFailure(Exception ex)
+        {
+            return ex is IOException or UnauthorizedAccessException or SecurityException or NotSupportedException
+                or ArgumentException or ObjectDisposedException;
+        }
+
+        private void ReportWriteFailure(Exception ex)
+        {
+            if (_writeFailureReported)
+            {
+                return;
+            }
+
+            _writeFailureReported = true;
+            UnityEngine.Debug.LogWarning($"[{DisplayName}] WkLogger could not write to '{LogFilePath}': {ex.Message}");
+        }
+
+        private void OpenWriter()
+        {
+            lock (_writeLock)
+            {
+                if (_writerOpen)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var stream = new FileStream(LogFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
                     _writer = new StreamWriter(stream) { AutoFlush = false };
                     _writerOpen = true;
-                } catch {
-                    // Disk full / locked / permission issue -- WriteLineToFile
-                    // will fall back to the open-per-line path so we still log.
+                }
+                catch (Exception ex) when (IsFileAccessFailure(ex))
+                {
                     _writer = null;
                     _writerOpen = false;
+                    ReportWriteFailure(ex);
                 }
             }
         }
 
-        private void FlushAndCloseWriter() {
-            lock (_writeLock) {
-                if (!_writerOpen || _writer == null) { _writer = null; _writerOpen = false; return; }
-                try { _writer.Flush(); } catch { /* ignore */ }
-                try { _writer.Dispose(); } catch { /* ignore */ }
+        private void FlushAndCloseWriter()
+        {
+            lock (_writeLock)
+            {
+                StreamWriter? writer = _writer;
+                bool wasOpen = _writerOpen;
                 _writer = null;
                 _writerOpen = false;
+                if (!wasOpen || writer == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    writer.Dispose();
+                }
+                catch (Exception ex) when (IsFileAccessFailure(ex))
+                {
+                    ReportWriteFailure(ex);
+                }
             }
         }
 
-        private void SubscribeLifecycle() {
+        private void SubscribeLifecycle()
+        {
             AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
-            EditorApplication.quitting               += OnEditorQuitting;
-            EditorApplication.playModeStateChanged   += OnPlayModeStateChanged;
+            EditorApplication.quitting += OnEditorQuitting;
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
 
-        // Test fixtures and one-off WkLogger instances never dispose
-        // themselves. The handlers stay subscribed until domain reload --
-        // which is fine: on reload the registry rebuilds anyway and the
-        // dead handlers are garbage-collected with the assembly.
+        private void OnBeforeAssemblyReload()
+        {
+            FlushAndCloseWriter();
+        }
 
-        private void OnBeforeAssemblyReload()              => FlushAndCloseWriter();
-        private void OnEditorQuitting()                    => FlushAndCloseWriter();
-        private void OnPlayModeStateChanged(PlayModeStateChange change) {
-            switch (change) {
+        private void OnEditorQuitting()
+        {
+            FlushAndCloseWriter();
+        }
+
+        private void OnPlayModeStateChanged(PlayModeStateChange change)
+        {
+            switch (change)
+            {
                 case PlayModeStateChange.ExitingEditMode:
                     FlushAndCloseWriter();
                     break;
                 case PlayModeStateChange.EnteredEditMode:
                     OpenWriter();
                     break;
+                case PlayModeStateChange.EnteredPlayMode:
+                case PlayModeStateChange.ExitingPlayMode:
+                default:
+                    break;
             }
         }
 
-        // ---- level entry points -------------------------------------
-
         public void Debug(string message,
                           [CallerMemberName] string member = "",
-                          [CallerFilePath]   string file = "",
-                          [CallerLineNumber] int    line = 0)
-            => Write(WkLogLevel.Debug, message, member, file, line);
+                          [CallerFilePath] string file = "",
+                          [CallerLineNumber] int line = 0)
+        {
+            Write(WkLogLevel.Debug, message, member, file, line);
+        }
 
         public void Info(string message,
                          [CallerMemberName] string member = "",
-                         [CallerFilePath]   string file = "",
-                         [CallerLineNumber] int    line = 0)
-            => Write(WkLogLevel.Info, message, member, file, line);
+                         [CallerFilePath] string file = "",
+                         [CallerLineNumber] int line = 0)
+        {
+            Write(WkLogLevel.Info, message, member, file, line);
+        }
 
         public void Warning(string message,
                             [CallerMemberName] string member = "",
-                            [CallerFilePath]   string file = "",
-                            [CallerLineNumber] int    line = 0)
-            => Write(WkLogLevel.Warning, message, member, file, line);
+                            [CallerFilePath] string file = "",
+                            [CallerLineNumber] int line = 0)
+        {
+            Write(WkLogLevel.Warning, message, member, file, line);
+        }
 
         public void Error(string message,
                           [CallerMemberName] string member = "",
-                          [CallerFilePath]   string file = "",
-                          [CallerLineNumber] int    line = 0)
-            => Write(WkLogLevel.Error, message, member, file, line);
+                          [CallerFilePath] string file = "",
+                          [CallerLineNumber] int line = 0)
+        {
+            Write(WkLogLevel.Error, message, member, file, line);
+        }
 
-        public void Exception(Exception ex, string context = null,
+        public void Exception(Exception ex, string? context = null,
                               [CallerMemberName] string member = "",
-                              [CallerFilePath]   string file = "",
-                              [CallerLineNumber] int    line = 0) {
-            if (ex == null) return;
-            var headline = string.IsNullOrEmpty(context)
+                              [CallerFilePath] string file = "",
+                              [CallerLineNumber] int line = 0)
+        {
+            if (ex == null)
+            {
+                return;
+            }
+
+            string headline = string.IsNullOrEmpty(context)
                 ? $"{ex.GetType().Name}: {ex.Message}"
                 : $"{context} -- {ex.GetType().Name}: {ex.Message}";
             Write(WkLogLevel.Error, headline, member, file, line);
             WriteLineToFile(ex.StackTrace ?? "(no stack trace)");
-            WriteLineToFile("", flushImmediately: true);  // blank separator; flush so the full stack lands on disk before any subsequent crash
-            if (MirrorExceptionToConsole) {
-                var contextObject = WkLogContext.CurrentContextObject;
-                if (contextObject != null) UnityEngine.Debug.LogException(ex, contextObject);
-                else                       UnityEngine.Debug.LogException(ex);
+            WriteLineToFile("", flushImmediately: true);
+            if (MirrorExceptionToConsole)
+            {
+                UnityEngine.Object? contextObject = WkLogContext.CurrentContextObject;
+                if (contextObject != null)
+                {
+                    UnityEngine.Debug.LogException(ex, contextObject);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogException(ex);
+                }
             }
         }
 
-        /// <summary>Write a raw line to the log file with no level/prefix. Useful for headers and separators.</summary>
-        public void Raw(string line) {
+        public void Raw(string line)
+        {
             WriteLineToFile(line);
         }
 
-        // ---- scoped operations --------------------------------------
-
-        /// <summary>
-        /// Push a <see cref="WkLogContext.Scope"/> labelled
-        /// <paramref name="label"/>, write a "<label> starting" line at
-        /// Debug level, and on dispose write a "<label> finished in Xms"
-        /// line at <paramref name="completionLevel"/>. Usage:
-        ///   using (logger.BeginTask("BoneMerger scan")) { ... }
-        /// </summary>
-        public IDisposable BeginTask(string label, WkLogLevel completionLevel = WkLogLevel.Info) {
+        public IDisposable BeginTask(string label, WkLogLevel completionLevel = WkLogLevel.Info)
+        {
             return new TaskScope(this, label, completionLevel);
         }
 
-        /// <summary>
-        /// Write a multi-line block to the file with each subsequent line
-        /// indented by two spaces. Same level mirror behaviour as a single
-        /// <see cref="Info"/> call but the indented lines stay file-only
-        /// to avoid spamming the Unity Console.
-        /// </summary>
         public void InfoBlock(string header, IEnumerable<string> lines,
                               [CallerMemberName] string member = "",
-                              [CallerFilePath]   string file = "",
-                              [CallerLineNumber] int    line = 0)
-            => WriteBlock(WkLogLevel.Info, header, lines, member, file, line);
+                              [CallerFilePath] string file = "",
+                              [CallerLineNumber] int line = 0)
+        {
+            WriteBlock(WkLogLevel.Info, header, lines, member, file, line);
+        }
 
         public void WarningBlock(string header, IEnumerable<string> lines,
                                  [CallerMemberName] string member = "",
-                                 [CallerFilePath]   string file = "",
-                                 [CallerLineNumber] int    line = 0)
-            => WriteBlock(WkLogLevel.Warning, header, lines, member, file, line);
+                                 [CallerFilePath] string file = "",
+                                 [CallerLineNumber] int line = 0)
+        {
+            WriteBlock(WkLogLevel.Warning, header, lines, member, file, line);
+        }
 
         public void ErrorBlock(string header, IEnumerable<string> lines,
                                [CallerMemberName] string member = "",
-                               [CallerFilePath]   string file = "",
-                               [CallerLineNumber] int    line = 0)
-            => WriteBlock(WkLogLevel.Error, header, lines, member, file, line);
+                               [CallerFilePath] string file = "",
+                               [CallerLineNumber] int line = 0)
+        {
+            WriteBlock(WkLogLevel.Error, header, lines, member, file, line);
+        }
 
         private void WriteBlock(WkLogLevel level, string header, IEnumerable<string> lines,
-                                string member, string file, int lineNumber) {
+                                string member, string file, int lineNumber)
+        {
             Write(level, header ?? "", member, file, lineNumber);
-            if (lines == null) return;
-            foreach (var lineText in lines) {
-                if (lineText == null) continue;
-                // Indent the continuation lines for readability; the prefix
-                // and timestamps stay so a grep on the level tag still
-                // catches them. Continuation lines do not mirror to the
-                // console -- the header already did.
+            if (lines == null)
+            {
+                return;
+            }
+
+            foreach (string lineText in lines)
+            {
+                if (lineText == null)
+                {
+                    continue;
+                }
+
                 WriteContinuationLine(level, "  " + lineText);
             }
         }
 
-        private void WriteContinuationLine(WkLogLevel level, string message) {
+        private void WriteContinuationLine(WkLogLevel level, string message)
+        {
             string formatted;
-            lock (_builder) {
+            lock (_builder)
+            {
                 _builder.Clear();
-                _builder.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                _builder.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture));
                 _builder.Append(" [").Append(LevelTag(level)).Append(']');
                 _builder.Append(' ').Append(message);
                 formatted = _builder.ToString();
@@ -285,7 +323,8 @@ namespace UmeVrcfQol.Internal.Logging {
             WriteLineToFile(formatted);
         }
 
-        private sealed class TaskScope : IDisposable {
+        private sealed class TaskScope : IDisposable
+        {
             private readonly WkLogger _logger;
             private readonly string _label;
             private readonly WkLogLevel _completionLevel;
@@ -293,7 +332,8 @@ namespace UmeVrcfQol.Internal.Logging {
             private readonly double _startTimeRealtime;
             private bool _disposed;
 
-            public TaskScope(WkLogger logger, string label, WkLogLevel completionLevel) {
+            public TaskScope(WkLogger logger, string label, WkLogLevel completionLevel)
+            {
                 _logger = logger;
                 _label = label ?? "task";
                 _completionLevel = completionLevel;
@@ -302,132 +342,154 @@ namespace UmeVrcfQol.Internal.Logging {
                 _logger.Debug($"{_label} starting");
             }
 
-            public void Dispose() {
-                if (_disposed) return;
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
                 _disposed = true;
-                var elapsedMs = (Time.realtimeSinceStartupAsDouble - _startTimeRealtime) * 1000.0;
-                var msg = $"{_label} finished in {elapsedMs:F1} ms";
-                switch (_completionLevel) {
-                    case WkLogLevel.Debug:   _logger.Debug(msg);   break;
+                double elapsedMs = (Time.realtimeSinceStartupAsDouble - _startTimeRealtime) * 1000.0;
+                string msg = $"{_label} finished in {elapsedMs:F1} ms";
+                switch (_completionLevel)
+                {
+                    case WkLogLevel.Debug: _logger.Debug(msg); break;
                     case WkLogLevel.Warning: _logger.Warning(msg); break;
-                    case WkLogLevel.Error:   _logger.Error(msg);   break;
-                    default:                 _logger.Info(msg);    break;
+                    case WkLogLevel.Error: _logger.Error(msg); break;
+                    case WkLogLevel.Info:
+                    default: _logger.Info(msg); break;
                 }
                 _scope.Dispose();
             }
         }
 
-        // ---- formatting ---------------------------------------------
-
-        private void Write(WkLogLevel level, string message, string member, string file, int lineNumber) {
-            string fileName = string.IsNullOrEmpty(file) ? null : Path.GetFileName(file);
+        private void Write(WkLogLevel level, string message, string member, string file, int lineNumber)
+        {
+            string? fileName = string.IsNullOrEmpty(file) ? null : Path.GetFileName(file);
             string source = (fileName != null && lineNumber > 0) ? $" {fileName}:{lineNumber}" : "";
             string memberTag = string.IsNullOrEmpty(member) ? "" : $" ({member})";
             string scopePrefix = WkLogContext.FormatScopePrefix();
             string formatted;
-            lock (_builder) {
+            lock (_builder)
+            {
                 _builder.Clear();
-                _builder.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                _builder.Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture));
                 _builder.Append(" [").Append(LevelTag(level)).Append(']');
                 _builder.Append(source).Append(memberTag);
                 _builder.Append(' ').Append(scopePrefix).Append(message);
                 formatted = _builder.ToString();
             }
-            // Warning, Error, Exception flush immediately -- a crash before
-            // the next flush still preserves the relevant lines. Debug, Info
-            // are eventually consistent.
-            bool flushNow = level == WkLogLevel.Warning || level == WkLogLevel.Error;
+            bool flushNow = level is WkLogLevel.Warning or WkLogLevel.Error;
             WriteLineToFile(formatted, flushNow);
             MirrorToConsole(level, message);
         }
 
-        private static string LevelTag(WkLogLevel level) {
-            switch (level) {
-                case WkLogLevel.Debug:   return "DEBUG";
-                case WkLogLevel.Info:    return "INFO ";
-                case WkLogLevel.Warning: return "WARN ";
-                case WkLogLevel.Error:   return "ERROR";
-                default:                 return "?????";
-            }
+        private static string LevelTag(WkLogLevel level)
+        {
+            return level switch
+            {
+                WkLogLevel.Debug => "DEBUG",
+                WkLogLevel.Info => "INFO ",
+                WkLogLevel.Warning => "WARN ",
+                WkLogLevel.Error => "ERROR",
+                _ => "?????",
+            };
         }
 
-        private void MirrorToConsole(WkLogLevel level, string message) {
-            var prefixed = $"[{_displayName}] {message}";
-            // Attach the current context object to the console mirror so
-            // clicking the line in the Console pings the object in the
-            // Hierarchy. Console mirror omits the file-line scope prefix
-            // -- the prefix is for grep, not Unity's UI.
-            var contextObject = WkLogContext.CurrentContextObject;
-            switch (level) {
-                case WkLogLevel.Debug:
-                    if (!MirrorDebugToConsole) break;
-                    if (contextObject != null) UnityEngine.Debug.Log(prefixed, contextObject);
-                    else                       UnityEngine.Debug.Log(prefixed);
-                    break;
-                case WkLogLevel.Info:
-                    if (!MirrorInfoToConsole) break;
-                    if (contextObject != null) UnityEngine.Debug.Log(prefixed, contextObject);
-                    else                       UnityEngine.Debug.Log(prefixed);
-                    break;
+        private bool IsMirrored(WkLogLevel level)
+        {
+            return level switch
+            {
+                WkLogLevel.Debug => MirrorDebugToConsole,
+                WkLogLevel.Info => MirrorInfoToConsole,
+                WkLogLevel.Warning => MirrorWarningToConsole,
+                WkLogLevel.Error => MirrorErrorToConsole,
+                _ => false,
+            };
+        }
+
+        private void MirrorToConsole(WkLogLevel level, string message)
+        {
+            if (!IsMirrored(level))
+            {
+                return;
+            }
+
+            string prefixed = $"[{DisplayName}] {message}";
+            UnityEngine.Object? contextObject = WkLogContext.CurrentContextObject;
+            switch (level)
+            {
                 case WkLogLevel.Warning:
-                    if (!MirrorWarningToConsole) break;
-                    if (contextObject != null) UnityEngine.Debug.LogWarning(prefixed, contextObject);
-                    else                       UnityEngine.Debug.LogWarning(prefixed);
+                    UnityEngine.Debug.LogWarning(prefixed, contextObject);
                     break;
                 case WkLogLevel.Error:
-                    if (!MirrorErrorToConsole) break;
-                    if (contextObject != null) UnityEngine.Debug.LogError(prefixed, contextObject);
-                    else                       UnityEngine.Debug.LogError(prefixed);
+                    UnityEngine.Debug.LogError(prefixed, contextObject);
+                    break;
+                case WkLogLevel.Debug:
+                case WkLogLevel.Info:
+                default:
+                    UnityEngine.Debug.Log(prefixed, contextObject);
                     break;
             }
         }
 
-        private void WriteLineToFile(string line) {
+        private void WriteLineToFile(string line)
+        {
             WriteLineToFile(line, flushImmediately: false);
         }
 
-        private void WriteLineToFile(string line, bool flushImmediately) {
-            lock (_writeLock) {
-                try {
-                    if (_writerOpen && _writer != null) {
+        private void WriteLineToFile(string line, bool flushImmediately)
+        {
+            lock (_writeLock)
+            {
+                try
+                {
+                    if (_writerOpen && _writer != null)
+                    {
                         _writer.WriteLine(line);
-                        if (flushImmediately) _writer.Flush();
+                        if (flushImmediately)
+                        {
+                            _writer.Flush();
+                        }
+
                         return;
                     }
-                    // Fallback path: writer never opened (early-init crash,
-                    // disk error, paused state). Open-per-line so we still
-                    // capture content -- skipped flushes simply mean the
-                    // log file lags a few lines behind events.
-                    using (var fs = new FileStream(_logFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
-                    using (var writer = new StreamWriter(fs)) {
-                        writer.WriteLine(line);
-                    }
-                } catch {
-                    // Never let logging throw -- if the disk is full or
-                    // the file is locked, we'd rather drop a line than
-                    // crash the editor.
+                    using var fs = new FileStream(LogFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                    using var writer = new StreamWriter(fs);
+                    writer.WriteLine(line);
+                }
+                catch (Exception ex) when (IsFileAccessFailure(ex))
+                {
+                    ReportWriteFailure(ex);
                 }
             }
         }
 
-        /// <summary>
-        /// Flush any buffered lines to disk. Called automatically on
-        /// Warning/Error/Exception and on the documented lifecycle hooks;
-        /// also exposed so callers about to do something risky (long
-        /// blocking call, native interop, etc.) can ensure the audit
-        /// trail is durable first.
-        /// </summary>
-        public void Flush() {
-            lock (_writeLock) {
-                if (_writerOpen && _writer != null) {
-                    try { _writer.Flush(); } catch { /* ignore */ }
+        public void Flush()
+        {
+            lock (_writeLock)
+            {
+                if (!_writerOpen || _writer == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    _writer.Flush();
+                }
+                catch (Exception ex) when (IsFileAccessFailure(ex))
+                {
+                    ReportWriteFailure(ex);
                 }
             }
         }
 
-        private void WriteSessionHeader() {
+        private void WriteSessionHeader()
+        {
             WriteLineToFile("================================================================");
-            WriteLineToFile($"WhyKnot {_displayName} ({_packageId}) v{_packageVersion}");
+            WriteLineToFile($"WhyKnot {DisplayName} ({PackageId}) v{_packageVersion}");
             WriteLineToFile($"Session started: {DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}");
             WriteLineToFile($"Unity:    {Application.unityVersion}");
             WriteLineToFile($"Platform: {Application.platform} ({SystemInfo.operatingSystem})");
@@ -438,52 +500,82 @@ namespace UmeVrcfQol.Internal.Logging {
             WriteLineToFile("================================================================");
         }
 
-        private static string ResolveProjectPath() {
-            try {
+        private static string ResolveProjectPath()
+        {
+            try
+            {
                 return Directory.GetParent(Application.dataPath)?.FullName ?? "(unknown)";
-            } catch {
+            }
+            catch (Exception ex) when (ex is UnityException || IsFileAccessFailure(ex))
+            {
                 return "(unknown)";
             }
         }
 
-        // ---- session culling ----------------------------------------
+        private static string ResolveLogDirectory(string packageId)
+        {
+            string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (string.IsNullOrEmpty(root))
+            {
+                try
+                {
+                    root = Application.persistentDataPath;
+                }
+                catch (UnityException)
+                {
+                    root = "";
+                }
 
-        private static string ResolveLogDirectory(string packageId) {
-            var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (string.IsNullOrEmpty(root)) {
-                // Fall back to the Unity persistent data path, then to the
-                // working directory if even that's unavailable. Either way
-                // the user still gets a log; it's just less centralized.
-                try { root = Application.persistentDataPath; } catch { /* ignore */ }
-                if (string.IsNullOrEmpty(root)) root = Environment.CurrentDirectory;
+                if (string.IsNullOrEmpty(root))
+                {
+                    root = Environment.CurrentDirectory;
+                }
             }
             return Path.Combine(root, RootFolderName, LogsFolderName, packageId);
         }
 
-        private static string BuildSessionFileName(DateTime when) {
+        private static string BuildSessionFileName(DateTime when)
+        {
             return $"{SessionFilePrefix}{when:yyyy-MM-dd_HHmmss}{SessionFileExtension}";
         }
 
-        /// <summary>
-        /// Delete oldest session files in <paramref name="directory"/> until at
-        /// most <paramref name="keep"/> remain. Called before the new session
-        /// file is created so the post-create count is exactly keep + 1, which
-        /// is what callers want when they pass keep = MaxSessionsPerPackage - 1.
-        /// </summary>
-        internal static void CullOldSessions(string directory, int keep) {
-            if (keep < 0) keep = 0;
-            if (!Directory.Exists(directory)) return;
+        internal static int CullOldSessions(string directory, int keep)
+        {
+            if (keep < 0)
+            {
+                keep = 0;
+            }
+
+            if (!Directory.Exists(directory))
+            {
+                return 0;
+            }
+
             string searchPattern = SessionFilePrefix + "*" + SessionFileExtension;
             FileInfo[] all;
-            try {
+            try
+            {
                 all = new DirectoryInfo(directory).GetFiles(searchPattern);
-            } catch {
-                return;
             }
-            var sorted = all.OrderByDescending(f => f.LastWriteTimeUtc).ToArray();
-            for (int i = keep; i < sorted.Length; i++) {
-                try { sorted[i].Delete(); } catch { /* ignore */ }
+            catch (Exception ex) when (IsFileAccessFailure(ex))
+            {
+                return 0;
             }
+            FileInfo[] sorted = all.OrderByDescending(f => f.LastWriteTimeUtc).ToArray();
+            int failures = 0;
+            for (int i = keep; i < sorted.Length; i++)
+            {
+                try
+                {
+                    sorted[i].Delete();
+                }
+                catch (Exception ex) when (IsFileAccessFailure(ex))
+                {
+                    failures++;
+                }
+            }
+
+            return failures;
         }
     }
 }
