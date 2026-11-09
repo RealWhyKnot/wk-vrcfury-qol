@@ -6,6 +6,12 @@
 
 Quality-of-life editor tools for [VRCFury](https://vrcfury.com/). They show up where you're already working: the right-click menu on a page, buttons on flipbook rows, a banner on each Toggle, and a window where you drop in two objects to swap references.
 
+## No longer maintained
+
+I've stopped using VRCFury. My avatars now run on tooling I wrote for them myself, and I don't see a reason to keep maintaining a tool that needs it. 1.2.6 is the last release. It's one final code cleanup, and the repository is archived after it.
+
+You're welcome to fork it and carry it on. The VPM listing at <https://vpm.whyknot.dev/> stays up for as long as I keep hosting my other services. It costs me very little to run, and anyone already using the package can keep installing it from there.
+
 ## Tools
 
 - Move all VRCFury components between GameObjects in one Undo step. Each component moves as it is. Right-click a GameObject -> WhyKnot -> wk-vrcfury-qol -> Move all VRCFury components to...
@@ -48,7 +54,7 @@ These tools make real changes to your scene. A migration deletes the original VR
 
 ## Contributing
 
-Bug reports, feature requests and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the dev setup and PR conventions.
+The repository is archived, and issues and pull requests are closed with it. If you fork it, [CONTRIBUTING.md](CONTRIBUTING.md) still describes the dev setup.
 
 ## License
 
