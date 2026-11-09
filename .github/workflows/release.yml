@@ -138,6 +138,7 @@ jobs:
             --exclude='/Tests/' \
             --exclude='/scripts/' \
             --exclude='CONTRIBUTING.md' \
+            --exclude='/VrcfQol.slnx' \
             --exclude='staging' \
             --exclude='*.zip' \
             --exclude='*.bak' \
