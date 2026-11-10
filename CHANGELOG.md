@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## Unreleased
 
+_No notable changes since the last release._
+
+---
+
+## [v1.2.6](https://github.com/RealWhyKnot/wk-vrcfury-qol/releases/tag/v1.2.6) -- 2026-11-10
+
 ### Fixed
 - Stop renaming global params and drop merge mode (2475279)
 
